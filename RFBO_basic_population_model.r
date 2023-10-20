@@ -87,7 +87,14 @@ cat("
     
     mean.ad.surv ~ dunif(0.9, 0.94)             # Prior for mean survival
     mean.juv.surv ~ dunif(0.80,0.85)    ## based on juvenile survival for Balearic shearwaters in the Med.
-    breed.prop ~ dunif(0.5,0.6)
+    breed.prop ~ dunif(0.5,1)
+    
+    # -------------------------------------------------        
+    # 1.3. Priors FOR POPULATION COUNT ERROR
+    # -------------------------------------------------
+    sigma.obs ~ dunif(0,10)  #Prior for SD of observation process (variation in detectability)
+    tau.obs<-pow(sigma.obs,-2)
+
     
     #-------------------------------------------------  
     # 2. LIKELIHOODS AND ECOLOGICAL STATE MODEL
@@ -127,6 +134,15 @@ cat("
     
     
     
+    # -------------------------------------------------        
+    # 2.3. Likelihood for population.counts
+    # -------------------------------------------------
+      ## Observation process
+    
+      for (t in 1:n.years){
+        Nad.count[t] ~ dnorm(Nad.breed[t], tau.obs)# Distribution for random error in observed numbers (counts)
+      }# run this loop over t= nyears
+    
     
     # -------------------------------------------------        
     # 4. DERIVED PARAMETERS
@@ -157,9 +173,9 @@ sink()
 #########################################################################
 
 # Bundle data
-jags.data <- list(Nad.breed=countdata$RFBO,
+jags.data <- list(Nad.count=countdata$RFBO,
                   n.years=length(countdata$RFBO),
-                  J=productivity,
+                  J=as.integer(productivity),
                   BP=rep(100,length(productivity)),
                   n.col=length(productivity))
 
@@ -169,7 +185,7 @@ inits <- function(){list(mean.ad.surv = runif(1, 0.9, 0.94),
 
 
 # Parameters monitored
-parameters <- c("mean.fec","mean.juv.surv","mean.ad.surv","growth.rate","Nad.breed")
+parameters <- c("sigma.obs","breed.prop","mean.fec","mean.juv.surv","mean.ad.surv","Nad.breed")
 
 # MCMC settings
 ni <- 1500
@@ -184,7 +200,6 @@ RFBO_IPM <- jags(jags.data, inits, model.file="C:/STEFFEN/OneDrive - THE ROYAL S
 
 
 ### save model workspace
-setwd("C:\\STEFFEN\\MANUSCRIPTS\\in_press\\RFBO_pop_model")
 #save.image("RFBO_IPM_REV1.RData")
 load("RFBO_IPM_REV1.RData")
 
@@ -235,37 +250,21 @@ dim(CH)
 
 ## retrieve the past population estimates (2006-2019)
 RFBOpop<-out[(grep("Nad.breed\\[",out$parameter)),c(12,5,4,6)] %>%
-  mutate(Year=rep(seq(1956,2057),2)) %>%
-  mutate(scenario=as.numeric(str_extract_all(parameter,"\\(?[0-9]+\\)?", simplify=TRUE)[,2])) %>%
-  mutate(Scenario=ifelse(scenario==1,"no eradication","with eradication")) %>%
-  filter(!(Scenario=="with eradication" & Year<2024)) %>%
-  #filter((Scenario=="with eradication")) %>%
-  #rename(parm=parameter,median=`50%`,lcl=`2.5%`,ucl=`97.5%`) %>%
+  mutate(Year=seq(1969,2023)) %>%
   rename(parm=parameter,median=`50%`,lcl=`25%`,ucl=`75%`) %>%
-  dplyr::select(parm,Scenario,Year,median,lcl,ucl)
+  dplyr::select(parm,Year,median,lcl,ucl)
 
-
-### summary for manuscript
-RFBOpop %>% filter(Year==2020)
-RFBOpop %>% filter(Year==1956)
-174684/3502083
 
 ### CREATE PLOT FOR BASELINE TRAJECTORY
-RFBOpop$ucl[RFBOpop$ucl>5000000]<-4999999
 
 ggplot()+
-  geom_line(data=RFBOpop, aes(x=Year, y=median, color=Scenario), size=1)+
-  geom_ribbon(data=RFBOpop,aes(x=Year, ymin=lcl,ymax=ucl, fill=Scenario),alpha=0.2)+
+  geom_line(data=RFBOpop, aes(x=Year, y=median), linewidth=1)+
+  geom_ribbon(data=RFBOpop,aes(x=Year, ymin=lcl,ymax=ucl),alpha=0.2)+
   
   ## format axis ticks
-  scale_y_continuous(name="MacGillivray's Prion pairs (millions)", limits=c(0,5000000),breaks=seq(0,5000000,500000),labels=seq(0,5,0.5))+
-  scale_x_continuous(name="Year", limits=c(1956,2057), breaks=seq(1956,2056,20), labels=as.character(seq(1956,2056,20)))+
-  
-  ## add count data
-  geom_segment(aes(x=1956, xend=1956,y=0.4*5000000,yend=0.5*10000000),lineend = "round", size=2, colour="darkblue") +
-  geom_segment(aes(x=2000, xend=2000,y=0.4*1500000,yend=0.5*2000000),lineend = "round", size=2, colour="darkblue") +
-  
-  
+  scale_y_continuous(name="Red-footed Booby pairs", limits=c(0,25000),breaks=seq(0,25000,5000))+
+  scale_x_continuous(name="Year", limits=c(1969,2023), breaks=seq(1969,2023,5))+
+
   ## beautification of the axes
   theme(panel.background=element_rect(fill="white", colour="black"), panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
         axis.text.y=element_text(size=18, color="black"),
