@@ -1,0 +1,88 @@
+
+  
+  
+  model {
+    #-------------------------------------------------
+    # - population model for the Red-Footed Booby population on Aldabra
+    # - age structured model with 4 age classes 
+    # - all survival based on literature
+    # - productivity based on data from 2023 only
+    # - goal is to examine whether the increase could have occurred from local productivity or not
+    # -------------------------------------------------
+    
+    #-------------------------------------------------  
+    # 1. PRIORS FOR ALL DATA SETS
+    #-------------------------------------------------
+    
+    
+    # -------------------------------------------------        
+    # 1.1. Priors and constraints FOR FECUNDITY
+    # -------------------------------------------------
+    
+    mean.fec ~ dunif(0.3,0.7)         ## uninformative prior for breeding success
+
+    # -------------------------------------------------        
+    # 1.2. Priors and constraints FOR SURVIVAL
+    # -------------------------------------------------
+    
+    mean.ad.surv ~ dunif(0.9, 0.94)             # Prior for mean survival
+    mean.juv.surv ~ dunif(0.80,0.85)    ## based on juvenile survival for Balearic shearwaters in the Med.
+    breed.prop ~ dunif(0.5,0.6)
+    
+    #-------------------------------------------------  
+    # 2. LIKELIHOODS AND ECOLOGICAL STATE MODEL
+    #-------------------------------------------------
+    
+    # -------------------------------------------------        
+    # 2.1. System process: female based matrix model
+    # -------------------------------------------------
+
+      ### INITIAL VALUES FOR COMPONENTS FOR YEAR 1
+      JUV[1]<-round(Nad.breed[1]*0.5*(mean.fec)*breed.prop)
+      N1[1]<-round(Nad.breed[1]*0.5*(mean.fec)*breed.prop*mean.juv.surv)
+      N2[1]<-round(Nad.breed[1]*0.5*(mean.fec)*breed.prop*mean.juv.surv*mean.ad.surv)
+      Nad.breed[1] ~ dunif(2000,2500)         # initial value of population size
+      Nad.nonbreed[1] <- Nad.breed[1] * (1-breed.prop)         # initial value of non-breeder size
+      
+      for (tt in 2:n.years){
+
+        ## THE PRE-BREEDERS ##
+        JUV[tt] ~ dbin(mean.fec,round(0.5 * Nad.breed[tt]*breed.prop))                                   ### number of locally produced FEMALE chicks
+        N1[tt]  ~ dbin(mean.juv.surv, max(2,round(JUV[tt-1])))                                               ### number of 1-year old survivors 
+        N2[tt] ~ dbin(mean.ad.surv, max(2,round(N1[tt-1])))                                                      ### number of 2-year old survivors
+
+        ## THE BREEDERS ##
+        Nad.surv[tt] ~ dbin(mean.ad.surv, max(2,round(N2[tt-1]+Nad.breed[tt-1]+Nad.nonbreed[tt-1])))                            ### the annual number of breeding birds is the sum of old breeders and recent recruits
+        Nad.breed[tt] ~ dbin(breed.prop, max(2,Nad.surv[tt]))                            ### the annual number of breeding birds is the proportion of adult survivors
+        Nad.nonbreed[tt] <- max(2,Nad.surv[tt]-Nad.breed[tt])                            ### the annual number of nonbreeding birds is the remainder of adult survivors
+      } # tt
+      
+
+    # -------------------------------------------------        
+    # 2.2. Likelihood for fecundity: binomial regression from the number of surveyed colonies
+    # -------------------------------------------------
+    for (n in 1:(n.col)){      ### N of colonies where breeding success was measured
+      J[n] ~ dbin(mean.fec,BP[n])
+    } #	close loop over every site
+    
+    
+    
+    
+    # -------------------------------------------------        
+    # 4. DERIVED PARAMETERS
+    # -------------------------------------------------
+
+    ## DERIVED POPULATION GROWTH RATE 
+      for (tt in 2:n.years){
+        lambda[tt]<-Nad.breed[tt]/max(1,Nad.breed[tt-1])
+        loglam[tt]<-log(lambda[tt])
+      } ## end of tt
+      
+      #growth.rate <- exp((1/(n.years-1))*sum(loglam[1:(n.years-1)]))  ### geometric mean growth rate
+      
+    
+  }  ## END MODEL LOOP
+    
+    
+    
+    

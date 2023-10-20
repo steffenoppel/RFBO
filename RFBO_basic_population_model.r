@@ -23,12 +23,12 @@ select<-dplyr::select
 #########################################################################
 ## sent by Michelle Risi in October 2023 (WhatsApp)
 countdata<-data.frame(Year=seq(1969,2023,1),RFBO=NA)
-countdata[Year==1969,2]<-2277
-countdata[Year==2000,2]<-4095
-countdata[Year==2023,2]<-22607
+countdata[countdata$Year==1969,2]<-2277
+countdata[countdata$Year==2000,2]<-4095
+countdata[countdata$Year==2023,2]<-22607
 
 ## Breeding success (%) at five monitoring colonies in the 2022 NW season
-procuctivity<-c(55.3,61.8,43.6,34.3,47.6)
+productivity<-c(55.3,61.8,43.6,34.3,47.6)
 
 
 
@@ -56,7 +56,7 @@ procuctivity<-c(55.3,61.8,43.6,34.3,47.6)
 
 
 
-setwd("C:\\STEFFEN\\RSPB\\UKOT\\Gough\\ANALYSIS\\PopulationModel\\MAPR")
+setwd("C:/STEFFEN/OneDrive - THE ROYAL SOCIETY FOR THE PROTECTION OF BIRDS/STEFFEN/RSPB/PeripheralProjects/RFBO")
 sink("RFBO_popmod.jags")
 cat("
   
@@ -79,15 +79,15 @@ cat("
     # 1.1. Priors and constraints FOR FECUNDITY
     # -------------------------------------------------
     
-    mean.fec ~ dunif(0,1)         ## uninformative prior for BAD YEARS
+    mean.fec ~ dunif(0.3,0.7)         ## uninformative prior for breeding success
 
     # -------------------------------------------------        
     # 1.2. Priors and constraints FOR SURVIVAL
     # -------------------------------------------------
     
-    mean.phi ~ dunif(0, 1)             # Prior for mean survival
-    mean.juv.surv ~ dunif(0.63,0.78)    ## based on juvenile survival for Balearic shearwaters in the Med.
-
+    mean.ad.surv ~ dunif(0.9, 0.94)             # Prior for mean survival
+    mean.juv.surv ~ dunif(0.80,0.85)    ## based on juvenile survival for Balearic shearwaters in the Med.
+    breed.prop ~ dunif(0.5,0.6)
     
     #-------------------------------------------------  
     # 2. LIKELIHOODS AND ECOLOGICAL STATE MODEL
@@ -96,70 +96,34 @@ cat("
     # -------------------------------------------------        
     # 2.1. System process: female based matrix model
     # -------------------------------------------------
-    for (scen in 1:2){
 
-      ### INITIAL VALUES FOR COMPONENTS FOR YEAR 1 - based on stable stage distribution from previous model
-      fec.proj[scen,1]<-mean.fec[year.prop.good[scen,1]+1]    ## takes good or bad year fecundity
-      year.prop.good[scen,1] ~ dbern(orig.fec)
+      ### INITIAL VALUES FOR COMPONENTS FOR YEAR 1
+      JUV[1]<-round(Nad.breed[1]*0.5*(mean.fec)*breed.prop)
+      N1[1]<-round(Nad.breed[1]*0.5*(mean.fec)*breed.prop*mean.juv.surv)
+      N2[1]<-round(Nad.breed[1]*0.5*(mean.fec)*breed.prop*mean.juv.surv*mean.ad.surv)
+      Nad.breed[1] ~ dunif(2000,2500)         # initial value of population size
+      Nad.nonbreed[1] <- Nad.breed[1] * (1-breed.prop)         # initial value of non-breeder size
       
-      ### INITIAL VALUES FOR COMPONENTS FOR YEAR 1 - based on stable stage distribution from previous model
-      JUV[1,scen]<-round(Ntot.breed[1,scen]*0.5*(mean.fec[year.prop.good[scen,1]+1]))
-      N1[1,scen]<-round(Ntot.breed[1,scen]*0.5*(mean.fec[year.prop.good[scen,1]+1])*mean.juv.surv)
-      N2[1,scen]<-round(Ntot.breed[1,scen]*0.5*(mean.fec[year.prop.good[scen,1]+1])*mean.juv.surv*mean.phi)
-      N3[1,scen]<-round(Ntot.breed[1,scen]*0.5*(mean.fec[year.prop.good[scen,1]+1])*mean.juv.surv*mean.phi*mean.phi)
-      Ntot.breed[1,scen] ~ dunif(2000000,5000000)         # initial value of population size
-      
-      for (tt in 2:65){
+      for (tt in 2:n.years){
 
-        ## LINEARLY DECREASING PROBABILITY OF A GOOD YEAR FROM 1956 to 2014
-        year.fec.prop[scen,tt]<- max(0,min(1,(orig.fec + fec.decrease*tt))) ## calculate yearly proportion of good breeding year, but constrain to 0-1 to avoid invalid parent value
-        year.prop.good[scen,tt] ~ dbern(year.fec.prop[scen,tt])
-        fec.proj[scen,tt]<-mean.fec[year.prop.good[scen,tt]+1]    ## takes good or bad year fecundity
-        breed.prop[scen,tt] ~ dunif(0.85,0.95)    ## breeding propensity
-        
         ## THE PRE-BREEDERS ##
-        JUV[tt,scen] ~ dbin(fec.proj[scen,tt],round(0.5 * Ntot.breed[tt,scen]*breed.prop[scen,tt]))                                   ### number of locally produced FEMALE chicks
-        N1[tt,scen]  ~ dbin(mean.juv.surv, max(2,round(JUV[tt-1,scen])))                                               ### number of 1-year old survivors 
-        N2[tt,scen] ~ dbin(mean.phi, max(2,round(N1[tt-1,scen])))                                                      ### number of 2-year old survivors
-        N3[tt,scen] ~ dbin(mean.phi, max(2,round(N2[tt-1,scen])))                                                      ### number of 3-year old survivors
-        
+        JUV[tt] ~ dbin(mean.fec,round(0.5 * Nad.breed[tt]*breed.prop))                                   ### number of locally produced FEMALE chicks
+        N1[tt]  ~ dbin(mean.juv.surv, max(2,round(JUV[tt-1])))                                               ### number of 1-year old survivors 
+        N2[tt] ~ dbin(mean.ad.surv, max(2,round(N1[tt-1])))                                                      ### number of 2-year old survivors
+
         ## THE BREEDERS ##
-        Ntot.breed[tt,scen] ~ dbin(mean.phi, max(2,round(N3[tt-1,scen]+Ntot.breed[tt-1,scen])))                            ### the annual number of breeding birds is the sum of old breeders and recent recruits
-        
+        Nad.surv[tt] ~ dbin(mean.ad.surv, max(2,round(N2[tt-1]+Nad.breed[tt-1]+Nad.nonbreed[tt-1])))                            ### the annual number of breeding birds is the sum of old breeders and recent recruits
+        Nad.breed[tt] ~ dbin(breed.prop, max(2,Nad.surv[tt]))                            ### the annual number of breeding birds is the proportion of adult survivors
+        Nad.nonbreed[tt] <- max(2,Nad.surv[tt]-Nad.breed[tt])                            ### the annual number of nonbreeding birds is the remainder of adult survivors
       } # tt
       
-      for (tt in 66:PROJ){
-        
-        ## SELECT GOOD OR BAD OR RODENT FREE FECUNDITY FOR FUTURE
-        year.fec.prop[scen,tt]<- min(1,max(0,(orig.fec + fec.decrease*tt))) ## calculate yearly proportion of good breeding year, but constrain to 0-1 to avoid invalid parent value
-        year.prop.good[scen,tt] ~ dbern(year.fec.prop[scen,tt])
-        fec.proj[scen,tt]<-max(mean.fec[year.prop.good[scen,tt]+1],(scen-1)*full.fec)    ## takes current fecundity for scenario 1 and full fecundity for scenario 2
-        breed.prop[scen,tt] ~ dunif(0.85,0.95)    ## breeding propensity
-        
-        ## THE PRE-BREEDERS ##
-        JUV[tt,scen] ~ dbin(fec.proj[scen,tt],round(0.5 * Ntot.breed[tt,scen]*breed.prop[scen,tt]))                                   ### need a discrete number otherwise dbin will fail, dpois must be >0
-        N1[tt,scen]  ~ dbin(mean.juv.surv, max(2,round(JUV[tt-1,scen])))                                               ### number of 1-year old survivors 
-        N2[tt,scen] ~ dbin(mean.phi, max(2,round(N1[tt-1,scen])))                                                      ### number of 2-year old survivors
-        N3[tt,scen] ~ dbin(mean.phi, max(2,round(N2[tt-1,scen])))                                                      ### number of 3-year old survivors
-        
-        ## THE BREEDERS ##
-        Ntot.breed[tt,scen] ~ dbin(mean.phi, max(2,round(N3[tt-1,scen]+Ntot.breed[tt-1,scen])))                            ### the annual number of breeding birds is the sum of old breeders and recent recruits
-        
-      } # tt
-      
-    } # scen    
-    
 
-
-    
     # -------------------------------------------------        
-    # 2.2. Likelihood for fecundity: Poisson regression from the number of surveyed broods
+    # 2.2. Likelihood for fecundity: binomial regression from the number of surveyed colonies
     # -------------------------------------------------
-    for (t in 1:(T.fec)){      ### T-1 or not
-      J[t] ~ dpois(rho.fec[t])
-      rho.fec[t] <- R[t]*mean.fec[goodyear[t]+1]
-      goodyear[t] ~ dbern(prop.good)
-    } #	close loop over every year in which we have fecundity data
+    for (n in 1:(n.col)){      ### N of colonies where breeding success was measured
+      J[n] ~ dbin(mean.fec,BP[n])
+    } #	close loop over every site
     
     
     
@@ -169,15 +133,13 @@ cat("
     # -------------------------------------------------
 
     ## DERIVED POPULATION GROWTH RATE 
-    for (scen in 1:2){
-      for (tt in 1:33){
-        lambda[tt,scen]<-Ntot.breed[tt+67,scen]/max(1,Ntot.breed[tt+66,scen])
-        loglam[tt,scen]<-log(lambda[tt,scen])
+      for (tt in 2:n.years){
+        lambda[tt]<-Nad.breed[tt]/max(1,Nad.breed[tt-1])
+        loglam[tt]<-log(lambda[tt])
       } ## end of tt
       
-      growth.rate[scen] <- exp((1/(33))*sum(loglam[1:(33),scen]))  ### geometric mean growth rate
+      #growth.rate <- exp((1/(n.years-1))*sum(loglam[1:(n.years-1)]))  ### geometric mean growth rate
       
-    } ## end of scen
     
   }  ## END MODEL LOOP
     
@@ -195,48 +157,36 @@ sink()
 #########################################################################
 
 # Bundle data
-jags.data <- list(## survival
-  y = CH,
-  f = f,
-  n.occasions = dim(CH)[2],
-  nind = dim(CH)[1],
-  #mean.juv.surv.prop= 0.728/0.894,  ## juvenile survival based on proportion of adult survival from Jiguet 2007
-  
-  ## fecundity
-  R =succ$R,
-  J=succ$J,
-  T.fec=length(succ$J),
-  goodyear=c(0,0,1,0,0,0),
-  
-  ## population process
-  Ntot.obs=matrix(c(3500000,800000,3500000,800000), ncol=2), ### adjusted for v6 to 2-5 million
-  PROJ=66+36)  ### adjusted for v6 to 103 years
+jags.data <- list(Nad.breed=countdata$RFBO,
+                  n.years=length(countdata$RFBO),
+                  J=productivity,
+                  BP=rep(100,length(productivity)),
+                  n.col=length(productivity))
 
 # Initial values 
-inits <- function(){list(mean.phi = runif(1, 0.7, 1),
-                         p = runif(dim(CH)[2]-1, 0, 1),
-                         orig.fec= runif(1, 0.75, 0.85))}  ### adjusted for REV1 as frequency of good years
+inits <- function(){list(mean.ad.surv = runif(1, 0.9, 0.94),
+                         mean.fec=runif(1,0.3,0.7))}  ### adjusted for REV1 as frequency of good years
 
 
 # Parameters monitored
-#parameters <- c("orig.fec","mean.fec","fec.decrease","fec.drop","mean.juv.surv","mean.phi","growth.rate","lambda","Ntot.breed")
-parameters <- c("orig.fec","mean.fec","fec.decrease","prop.good","mean.juv.surv","mean.phi","growth.rate","lambda","Ntot.breed")
+parameters <- c("mean.fec","mean.juv.surv","mean.ad.surv","growth.rate","Nad.breed")
 
 # MCMC settings
-ni <- 150000
+ni <- 1500
 nt <- 10
-nb <- 50000
+nb <- 500
 nc <- 3
 
 # Call JAGS from R (model created below)
-MAPR_IPM <- jags(jags.data, inits, parameters, "C:\\STEFFEN\\RSPB\\UKOT\\Gough\\ANALYSIS\\PopulationModel\\MAPR\\MAPR_IPM_REV1_varfec.jags",  ## changed from v4 to v6 on 10 Aug
-                     n.chains = nc, n.thin = nt, n.burnin = nb,parallel=T,n.iter = ni)
+RFBO_IPM <- jags(jags.data, inits, model.file="C:/STEFFEN/OneDrive - THE ROYAL SOCIETY FOR THE PROTECTION OF BIRDS/STEFFEN/RSPB/PeripheralProjects/RFBO/RFBO_popmod.jags",  ## changed from v4 to v6 on 10 Aug
+                     parameters.to.save=parameters,
+                 n.chains = nc, n.thin = nt, n.burnin = nb,parallel=T,n.iter = ni)
 
 
 ### save model workspace
-setwd("C:\\STEFFEN\\MANUSCRIPTS\\in_press\\MAPR_pop_model")
-#save.image("MAPR_IPM_REV1.RData")
-load("MAPR_IPM_REV1.RData")
+setwd("C:\\STEFFEN\\MANUSCRIPTS\\in_press\\RFBO_pop_model")
+#save.image("RFBO_IPM_REV1.RData")
+load("RFBO_IPM_REV1.RData")
 
 
 
@@ -248,8 +198,8 @@ load("MAPR_IPM_REV1.RData")
 # 5. SUMMARISE OUTPUT AND PLOT POPULATION TRAJECTORY
 #########################################################################
 ## compile output
-out<-as.data.frame(MAPR_IPM$summary)
-out$parameter<-row.names(MAPR_IPM$summary)
+out<-as.data.frame(RFBO_IPM$summary)
+out$parameter<-row.names(RFBO_IPM$summary)
 
 
 
@@ -258,20 +208,20 @@ out$parameter<-row.names(MAPR_IPM$summary)
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 head(out)
 
-TABLE1<-out %>% filter(parameter %in% c('mean.fec[1]','mean.fec[2]','orig.fec','prop.good','fec.decrease','mean.phi','mean.juv.surv','growth.rate[1]','growth.rate[2]')) %>%
+TABLE1<-out %>% filter(parameter %in% c('mean.fec[1]','mean.fec[2]','orig.fec','prop.good','fec.decrease','mean.ad.surv','mean.juv.surv','growth.rate[1]','growth.rate[2]')) %>%
   select(parameter,c(5,3,7))
 
 names(TABLE1)<-c("Parameter","Median","lowerCL","upperCL")
 TABLE1$Parameter<-c("original proportion of good breeding year (1956)","productivity (poor year)","productivity (good year)","annual decline in frequency of good breeding year","current proportion of good breeding year (2014-2019)","first year survival probability","annual adult survival probability","annual population growth rate (no eradication)","annual population growth rate (with eradication)")
 TABLE1
-#fwrite(TABLE1,"MAPR_demographic_parameter_estimates_REV1.csv")
+#fwrite(TABLE1,"RFBO_demographic_parameter_estimates_REV1.csv")
 
 ## FORMAT TABLE FOR MANUSCRIPT
 
 TABLE1<-TABLE1 %>% mutate(MED=paste(round(Median,3)," (",round(lowerCL,3)," - ", round(upperCL,3),")", sep="")) %>%
   select(Parameter,MED) %>%
   rename(`Median (95% credible interval)`=MED)
-setwd("C:\\STEFFEN\\MANUSCRIPTS\\submitted\\MAPR_pop_model")
+setwd("C:\\STEFFEN\\MANUSCRIPTS\\submitted\\RFBO_pop_model")
 #fwrite(TABLE1,"TABLE1.csv")
 
 ## REPORT QUANTITIES FOR RESULTS SECTION
@@ -284,7 +234,7 @@ dim(CH)
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 ## retrieve the past population estimates (2006-2019)
-MAPRpop<-out[(grep("Ntot.breed\\[",out$parameter)),c(12,5,4,6)] %>%
+RFBOpop<-out[(grep("Nad.breed\\[",out$parameter)),c(12,5,4,6)] %>%
   mutate(Year=rep(seq(1956,2057),2)) %>%
   mutate(scenario=as.numeric(str_extract_all(parameter,"\\(?[0-9]+\\)?", simplify=TRUE)[,2])) %>%
   mutate(Scenario=ifelse(scenario==1,"no eradication","with eradication")) %>%
@@ -296,16 +246,16 @@ MAPRpop<-out[(grep("Ntot.breed\\[",out$parameter)),c(12,5,4,6)] %>%
 
 
 ### summary for manuscript
-MAPRpop %>% filter(Year==2020)
-MAPRpop %>% filter(Year==1956)
+RFBOpop %>% filter(Year==2020)
+RFBOpop %>% filter(Year==1956)
 174684/3502083
 
 ### CREATE PLOT FOR BASELINE TRAJECTORY
-MAPRpop$ucl[MAPRpop$ucl>5000000]<-4999999
+RFBOpop$ucl[RFBOpop$ucl>5000000]<-4999999
 
 ggplot()+
-  geom_line(data=MAPRpop, aes(x=Year, y=median, color=Scenario), size=1)+
-  geom_ribbon(data=MAPRpop,aes(x=Year, ymin=lcl,ymax=ucl, fill=Scenario),alpha=0.2)+
+  geom_line(data=RFBOpop, aes(x=Year, y=median, color=Scenario), size=1)+
+  geom_ribbon(data=RFBOpop,aes(x=Year, ymin=lcl,ymax=ucl, fill=Scenario),alpha=0.2)+
   
   ## format axis ticks
   scale_y_continuous(name="MacGillivray's Prion pairs (millions)", limits=c(0,5000000),breaks=seq(0,5000000,500000),labels=seq(0,5,0.5))+
@@ -328,15 +278,15 @@ ggplot()+
         strip.text.x=element_text(size=18, color="black"), 
         strip.background=element_rect(fill="white", colour="black"))
 ggsave("Figure1.tif", width = 9, height = 6, device='tiff', dpi=300)
-ggsave("MAPR_population_projection_REV1_CI50.jpg", width=9, height=6)
+ggsave("RFBO_population_projection_REV1_CI50.jpg", width=9, height=6)
 
 
 ### CREATE INSET PLOT FOR FUTURE PROJECTION
-MAPRpop$ucl[MAPRpop$ucl>1000000]<-999999
+RFBOpop$ucl[RFBOpop$ucl>1000000]<-999999
 
 ggplot()+
-  geom_line(data=MAPRpop[MAPRpop$Year>2019,], aes(x=Year, y=median, color=Scenario), size=1)+
-  geom_ribbon(data=MAPRpop[MAPRpop$Year>2019,],aes(x=Year, ymin=lcl,ymax=ucl, fill=Scenario),alpha=0.2)+
+  geom_line(data=RFBOpop[RFBOpop$Year>2019,], aes(x=Year, y=median, color=Scenario), size=1)+
+  geom_ribbon(data=RFBOpop[RFBOpop$Year>2019,],aes(x=Year, ymin=lcl,ymax=ucl, fill=Scenario),alpha=0.2)+
   
   ## format axis ticks
   scale_y_continuous(name="MacGillivray's Prion pairs (millions)", limits=c(0,1000000),breaks=seq(0,1000000,100000),labels=seq(0,1,0.1))+
@@ -353,7 +303,7 @@ ggplot()+
         legend.key = element_rect(fill = NA),
         strip.text.x=element_text(size=18, color="black"), 
         strip.background=element_rect(fill="white", colour="black"))
-ggsave("MAPR_population_projection_REV1_CI50_INSET.jpg", width=9, height=6)
+ggsave("RFBO_population_projection_REV1_CI50_INSET.jpg", width=9, height=6)
 
 
 
@@ -364,10 +314,10 @@ ggsave("MAPR_population_projection_REV1_CI50_INSET.jpg", width=9, height=6)
 # GRAPH 2: EXTINCTION PROBABILITY OVER TIME
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 ### EXTRACT AND COMBINE DATA FROM ALL CHAINS 
-selcol<-grep("Ntot.breed",dimnames(MAPR_IPM$samples[[1]])[[2]])   ## FIND COLUMS WE NEED
+selcol<-grep("Nad.breed",dimnames(RFBO_IPM$samples[[1]])[[2]])   ## FIND COLUMS WE NEED
 allchainsamples <- data.frame()
 for(chain in 1:3) {
-  samplesout<-as.data.frame(MAPR_IPM$samples[[chain]][,selcol]) %>% gather(key="parm", value="value")
+  samplesout<-as.data.frame(RFBO_IPM$samples[[chain]][,selcol]) %>% gather(key="parm", value="value")
   allchainsamples <- rbind(allchainsamples,as.data.frame(samplesout))
 }
 
@@ -414,7 +364,7 @@ ggplot(data=extprop)+
         strip.text.y=element_text(size=14, color="black"),
         strip.background=element_rect(fill="white", colour="black"))
 ggsave("Figure2.tif", width = 9, height = 6, device='tiff', dpi=300)
-ggsave("MAPR_extinction_probability_REV1_250.jpg", width=9, height=6)
+ggsave("RFBO_extinction_probability_REV1_250.jpg", width=9, height=6)
 
 
 
@@ -440,7 +390,7 @@ fwrite(TABLE2,"TABLE2.csv")
 ### EXTRACT AND COMBINE DATA FROM ALL CHAINS 
 futlamsamples <- data.frame()
 for(chain in 1:3) {
-  samplesout<-as.data.frame(MAPR_IPM$samples[[chain]][,9]) %>% gather(key="parm", value="value")
+  samplesout<-as.data.frame(RFBO_IPM$samples[[chain]][,9]) %>% gather(key="parm", value="value")
   futlamsamples <- rbind(futlamsamples,as.data.frame(samplesout))
 }
 head(futlamsamples)
@@ -451,50 +401,3 @@ futlamsamples %>% mutate(decline=ifelse(value<0.95,1,0)) %>%
 
 
 
-
-
-##~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~##
-## SUMMARISE WIND AND RAIN FOR MAPR BREED SUCCESS YEARS
-##~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~##
-
-## count number of precipitation-free days
-
-try(setwd("C:\\STEFFEN\\RSPB\\UKOT\\Gough\\DATA\\Weather"), silent=T)
-weather<-fread("Gough_weather_data_2000_2020.csv")
-head(weather)
-weathersummary<-weather %>% group_by(Year) %>%
-  summarise(mean_wind=mean(Windspeed, na.rm=T),max_wind=max(Windspeed, na.rm=T),rain=sum(Rain)) %>%
-  filter(Year %in% succ$Year)
-weathersummary
-
-### McClelland et al. 2018 used 'rain free days' but that metric is suspicious in 2014!
-rainsummary<-weather %>% group_by(Year, Month, Day) %>%
-  summarise(rain=sum(Rain)) %>%
-  mutate(rainfree=ifelse(rain==0,1,0)) %>%
-  ungroup() %>%
-  group_by(Year) %>%
-  summarise(rainfreedays=sum(rainfree)) %>%
-  filter(Year %in% succ$Year)
-rainsummary
-
-
-
-##~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~##
-## PRODUCE WEATHER CHART
-##~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~##
-
-ggplot(weathersummary, mapping = aes(x = Year, y = mean_wind, group = 1)) + 
-  geom_bar(mapping = aes(y = rain/100), stat = "identity", color="cornflowerblue", fill="cornflowerblue", width = 0.5) + 
-  geom_line(color="indianred", size=1.5) +
-  
-
-  ## format axis ticks
-  scale_y_continuous("Mean wind speed (m/s)", sec.axis = sec_axis(~.*100, name = "Precipitation (mm)")) +
-  scale_x_continuous(name="Year", limits=c(2013.6,2019.4), breaks=seq(2014,2019,1)) +
-  
-  ## beautification of the axes
-  theme(panel.background=element_rect(fill="white", colour="black"),
-        panel.grid.major = element_blank(),
-        panel.grid.minor = element_blank(),
-        axis.text=element_text(size=14, color="black"),
-        axis.title=element_text(size=18))
