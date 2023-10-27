@@ -57,7 +57,7 @@ productivity<-c(55.3,61.8,43.6,34.3,47.6)
 
 
 setwd("C:/STEFFEN/OneDrive - THE ROYAL SOCIETY FOR THE PROTECTION OF BIRDS/STEFFEN/RSPB/PeripheralProjects/RFBO")
-sink("RFBO_popmod.jags")
+sink("RFBO_popmod_mix.jags")
 cat("
   
   
@@ -74,19 +74,22 @@ cat("
     # 1. PRIORS FOR ALL DATA SETS
     #-------------------------------------------------
     
+    mean.prop.good ~ dunif(0.1,0.9)        ## proportion of years that is good or bad (to allow past variation when good years were more common)
     
     # -------------------------------------------------        
     # 1.1. Priors and constraints FOR FECUNDITY
     # -------------------------------------------------
     
-    mean.fec ~ dunif(0.3,0.7)         ## uninformative prior for breeding success
+    mean.fec[1] ~ dunif(0.1,0.6)         ## uninformative prior for breeding success
+    mean.fec[2] ~ dunif(0.3,0.8)         ## uninformative prior for breeding success
 
     # -------------------------------------------------        
     # 1.2. Priors and constraints FOR SURVIVAL
     # -------------------------------------------------
     
-    mean.ad.surv ~ dunif(0.9, 0.94)             # Prior for mean survival
-    mean.juv.surv ~ dunif(0.80,0.85)    ## based on juvenile survival for Balearic shearwaters in the Med.
+    mean.ad.surv[1] ~ dunif(0.8, 0.92)             # Prior for mean survival
+    mean.ad.surv[2] ~ dunif(0.85, 0.95)             # Prior for mean survival
+    mean.juv.surv ~ dunif(0.75,0.9)    ## based on juvenile survival for Balearic shearwaters in the Med.
     breed.prop ~ dunif(0.5,1)
     
     # -------------------------------------------------        
@@ -105,21 +108,25 @@ cat("
     # -------------------------------------------------
 
       ### INITIAL VALUES FOR COMPONENTS FOR YEAR 1
-      JUV[1]<-round(Nad.breed[1]*0.5*(mean.fec)*breed.prop)
-      N1[1]<-round(Nad.breed[1]*0.5*(mean.fec)*breed.prop*mean.juv.surv)
-      N2[1]<-round(Nad.breed[1]*0.5*(mean.fec)*breed.prop*mean.juv.surv*mean.ad.surv)
+      JUV[1]<-round(Nad.breed[1]*0.5*(mean.fec[1])*breed.prop)
+      N1[1]<-round(Nad.breed[1]*0.5*(mean.fec[1])*breed.prop*mean.juv.surv)
+      N2[1]<-round(Nad.breed[1]*0.5*(mean.fec[1])*breed.prop*mean.juv.surv*mean.ad.surv[1])
       Nad.breed[1] ~ dunif(2000,2500)         # initial value of population size
       Nad.nonbreed[1] <- Nad.breed[1] * (1-breed.prop)         # initial value of non-breeder size
+      prop.good[1] ~ dbern(mean.prop.good)
       
       for (tt in 2:n.years){
+      
+        ## RANDOMLY DRAW GOOD OR BAD YEAR
+        prop.good[tt] ~ dbern(mean.prop.good)
 
         ## THE PRE-BREEDERS ##
-        JUV[tt] ~ dbin(mean.fec,round(0.5 * Nad.breed[tt]*breed.prop))                                   ### number of locally produced FEMALE chicks
+        JUV[tt] ~ dbin(mean.fec[prop.good[tt]+1],round(0.5 * Nad.breed[tt]*breed.prop))                                   ### number of locally produced FEMALE chicks
         N1[tt]  ~ dbin(mean.juv.surv, max(2,round(JUV[tt-1])))                                               ### number of 1-year old survivors 
-        N2[tt] ~ dbin(mean.ad.surv, max(2,round(N1[tt-1])))                                                      ### number of 2-year old survivors
+        N2[tt] ~ dbin(mean.ad.surv[prop.good[tt-1]+1], max(2,round(N1[tt-1])))                                                      ### number of 2-year old survivors
 
         ## THE BREEDERS ##
-        Nad.surv[tt] ~ dbin(mean.ad.surv, max(2,round(N2[tt-1]+Nad.breed[tt-1]+Nad.nonbreed[tt-1])))                            ### the annual number of breeding birds is the sum of old breeders and recent recruits
+        Nad.surv[tt] ~ dbin(mean.ad.surv[prop.good[tt-1]+1], max(2,round(N2[tt-1]+Nad.breed[tt-1]+Nad.nonbreed[tt-1])))                            ### the annual number of breeding birds is the sum of old breeders and recent recruits
         Nad.breed[tt] ~ dbin(breed.prop, max(2,Nad.surv[tt]))                            ### the annual number of breeding birds is the proportion of adult survivors
         Nad.nonbreed[tt] <- max(2,Nad.surv[tt]-Nad.breed[tt])                            ### the annual number of nonbreeding birds is the remainder of adult survivors
       } # tt
@@ -129,7 +136,7 @@ cat("
     # 2.2. Likelihood for fecundity: binomial regression from the number of surveyed colonies
     # -------------------------------------------------
     for (n in 1:(n.col)){      ### N of colonies where breeding success was measured
-      J[n] ~ dbin(mean.fec,BP[n])
+      J[n] ~ dbin(mean.fec[2],BP[n])
     } #	close loop over every site
     
     
@@ -180,12 +187,12 @@ jags.data <- list(Nad.count=countdata$RFBO,
                   n.col=length(productivity))
 
 # Initial values 
-inits <- function(){list(mean.ad.surv = runif(1, 0.9, 0.94),
-                         mean.fec=runif(1,0.3,0.7))}  ### adjusted for REV1 as frequency of good years
+inits <- function(){list(mean.ad.surv = runif(2, 0.9, 0.94),
+                         mean.fec=runif(2,0.3,0.7))}  ### adjusted for REV1 as frequency of good years
 
 
 # Parameters monitored
-parameters <- c("sigma.obs","breed.prop","mean.fec","mean.juv.surv","mean.ad.surv","Nad.breed")
+parameters <- c("sigma.obs","mean.prop.good","breed.prop","mean.fec","mean.juv.surv","mean.ad.surv","Nad.breed")
 
 # MCMC settings
 ni <- 1500
@@ -194,7 +201,7 @@ nb <- 500
 nc <- 3
 
 # Call JAGS from R (model created below)
-RFBO_IPM <- jags(jags.data, inits, model.file="C:/STEFFEN/OneDrive - THE ROYAL SOCIETY FOR THE PROTECTION OF BIRDS/STEFFEN/RSPB/PeripheralProjects/RFBO/RFBO_popmod.jags",  ## changed from v4 to v6 on 10 Aug
+RFBO_IPM <- jags(jags.data, inits, model.file="C:/STEFFEN/OneDrive - THE ROYAL SOCIETY FOR THE PROTECTION OF BIRDS/STEFFEN/RSPB/PeripheralProjects/RFBO/RFBO_popmod_mix.jags",  ## changed from v4 to v6 on 10 Aug
                      parameters.to.save=parameters,
                  n.chains = nc, n.thin = nt, n.burnin = nb,parallel=T,n.iter = ni)
 
