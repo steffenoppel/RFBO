@@ -80,16 +80,16 @@ cat("
     # 1.1. Priors and constraints FOR FECUNDITY
     # -------------------------------------------------
     
-    mean.fec[1] ~ dunif(0.1,0.6)         ## uninformative prior for breeding success
-    mean.fec[2] ~ dunif(0.3,0.8)         ## uninformative prior for breeding success
+    mean.fec[1] ~ dunif(0.1,0.5)         ## uninformative prior for breeding success
+    mean.fec[2] ~ dunif(0.4,0.9)         ## uninformative prior for breeding success
 
     # -------------------------------------------------        
     # 1.2. Priors and constraints FOR SURVIVAL
     # -------------------------------------------------
     
-    mean.ad.surv[1] ~ dunif(0.8, 0.92)             # Prior for mean survival
+    mean.ad.surv[1] ~ dunif(0.7, 0.9)             # Prior for mean survival
     mean.ad.surv[2] ~ dunif(0.85, 0.95)             # Prior for mean survival
-    mean.juv.surv ~ dunif(0.75,0.9)    ## based on juvenile survival for Balearic shearwaters in the Med.
+    mean.juv.surv ~ dunif(0.65,0.9)    ## based on juvenile survival for Balearic shearwaters in the Med.
     breed.prop ~ dunif(0.5,1)
     
     # -------------------------------------------------        
@@ -187,17 +187,17 @@ jags.data <- list(Nad.count=countdata$RFBO,
                   n.col=length(productivity))
 
 # Initial values 
-inits <- function(){list(mean.ad.surv = runif(2, 0.9, 0.94),
-                         mean.fec=runif(2,0.3,0.7))}  ### adjusted for REV1 as frequency of good years
+inits <- function(){list(mean.ad.surv = runif(2, 0.85, 0.9),
+                         mean.fec=runif(2,0.4,0.5))}  ### adjusted for REV1 as frequency of good years
 
 
 # Parameters monitored
 parameters <- c("sigma.obs","mean.prop.good","breed.prop","mean.fec","mean.juv.surv","mean.ad.surv","Nad.breed")
 
 # MCMC settings
-ni <- 1500
+ni <- 1500000
 nt <- 10
-nb <- 500
+nb <- 500000
 nc <- 3
 
 # Call JAGS from R (model created below)
@@ -230,11 +230,11 @@ out$parameter<-row.names(RFBO_IPM$summary)
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 head(out)
 
-TABLE1<-out %>% filter(parameter %in% c('mean.fec[1]','mean.fec[2]','orig.fec','prop.good','fec.decrease','mean.ad.surv','mean.juv.surv','growth.rate[1]','growth.rate[2]')) %>%
+TABLE1<-out %>% filter(parameter %in% c('mean.fec[1]','mean.fec[2]','mean.prop.good','mean.ad.surv[1]','mean.ad.surv[2]','mean.juv.surv')) %>%
   select(parameter,c(5,3,7))
 
 names(TABLE1)<-c("Parameter","Median","lowerCL","upperCL")
-TABLE1$Parameter<-c("original proportion of good breeding year (1956)","productivity (poor year)","productivity (good year)","annual decline in frequency of good breeding year","current proportion of good breeding year (2014-2019)","first year survival probability","annual adult survival probability","annual population growth rate (no eradication)","annual population growth rate (with eradication)")
+TABLE1$Parameter<-c("proportion of good breeding year","productivity (poor year)","productivity (good year)","first year survival probability","annual adult survival probability (poor year)","annual adult survival probability (good year)")
 TABLE1
 #fwrite(TABLE1,"RFBO_demographic_parameter_estimates_REV1.csv")
 
@@ -246,9 +246,6 @@ TABLE1<-TABLE1 %>% mutate(MED=paste(round(Median,3)," (",round(lowerCL,3)," - ",
 setwd("C:\\STEFFEN\\MANUSCRIPTS\\submitted\\RFBO_pop_model")
 #fwrite(TABLE1,"TABLE1.csv")
 
-## REPORT QUANTITIES FOR RESULTS SECTION
-sum(succ$R)
-dim(CH)
 
 
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -267,6 +264,7 @@ RFBOpop<-out[(grep("Nad.breed\\[",out$parameter)),c(12,5,4,6)] %>%
 ggplot()+
   geom_line(data=RFBOpop, aes(x=Year, y=median), linewidth=1)+
   geom_ribbon(data=RFBOpop,aes(x=Year, ymin=lcl,ymax=ucl),alpha=0.2)+
+  geom_point(data=countdata, aes(x=Year, y=RFBO), size=3, colour="firebrick")+
   
   ## format axis ticks
   scale_y_continuous(name="Red-footed Booby pairs", limits=c(0,25000),breaks=seq(0,25000,5000))+
@@ -285,31 +283,6 @@ ggplot()+
         strip.background=element_rect(fill="white", colour="black"))
 ggsave("Figure1.tif", width = 9, height = 6, device='tiff', dpi=300)
 ggsave("RFBO_population_projection_REV1_CI50.jpg", width=9, height=6)
-
-
-### CREATE INSET PLOT FOR FUTURE PROJECTION
-RFBOpop$ucl[RFBOpop$ucl>1000000]<-999999
-
-ggplot()+
-  geom_line(data=RFBOpop[RFBOpop$Year>2019,], aes(x=Year, y=median, color=Scenario), size=1)+
-  geom_ribbon(data=RFBOpop[RFBOpop$Year>2019,],aes(x=Year, ymin=lcl,ymax=ucl, fill=Scenario),alpha=0.2)+
-  
-  ## format axis ticks
-  scale_y_continuous(name="MacGillivray's Prion pairs (millions)", limits=c(0,1000000),breaks=seq(0,1000000,100000),labels=seq(0,1,0.1))+
-  scale_x_continuous(name="Year", limits=c(2020,2057), breaks=seq(2021,2056,5), labels=as.character(seq(2021,2056,5)))+
-  
-  ## beautification of the axes
-  theme(panel.background=element_rect(fill="white", colour="black"), panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
-        axis.text.y=element_text(size=18, color="black"),
-        axis.text.x=element_text(size=14, color="black"), 
-        axis.title=element_text(size=18),
-        legend.text=element_text(size=12, color="black"),
-        legend.title=element_text(size=14, color="black"),
-        legend.position = c(0.2,0.85),
-        legend.key = element_rect(fill = NA),
-        strip.text.x=element_text(size=18, color="black"), 
-        strip.background=element_rect(fill="white", colour="black"))
-ggsave("RFBO_population_projection_REV1_CI50_INSET.jpg", width=9, height=6)
 
 
 
@@ -371,39 +344,4 @@ ggplot(data=extprop)+
         strip.background=element_rect(fill="white", colour="black"))
 ggsave("Figure2.tif", width = 9, height = 6, device='tiff', dpi=300)
 ggsave("RFBO_extinction_probability_REV1_250.jpg", width=9, height=6)
-
-
-
-### CREATE TABLE 2 FOR MANUSCRIPT ###
-
-head(extprop)
-TABLE2<- extprop %>%
-  filter(Year==2057) %>%
-  select(ext.prob,Scenario) %>%
-  mutate(ext.prob=ext.prob*100) %>%
-  mutate(ext.prob=ifelse(ext.prob<1,"< 1%",paste0(ext.prob,"%")))
-fwrite(TABLE2,"TABLE2.csv")
-
-
-
-
-
-
-#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-# PROPORTION OF SIMULATIONS WITH NEGATIVE GROWTH RATE AFTER MOUSE ERADICATION
-#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-### EXTRACT AND COMBINE DATA FROM ALL CHAINS 
-futlamsamples <- data.frame()
-for(chain in 1:3) {
-  samplesout<-as.data.frame(RFBO_IPM$samples[[chain]][,9]) %>% gather(key="parm", value="value")
-  futlamsamples <- rbind(futlamsamples,as.data.frame(samplesout))
-}
-head(futlamsamples)
-
-futlamsamples %>% mutate(decline=ifelse(value<0.95,1,0)) %>%
-  tabyl(decline)
-
-
-
 
