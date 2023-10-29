@@ -34,7 +34,7 @@
     breed.prop[1] ~ dunif(0.5,1)
     breed.prop[2] ~ dunif(0.5,1)
     mean.imm[1]<-0
-    mean.imm[2] ~ dunif(0,50)
+    mean.imm[2] ~ dunif(0,150)
     
     # -------------------------------------------------        
     # 1.3. Priors FOR POPULATION COUNT ERROR

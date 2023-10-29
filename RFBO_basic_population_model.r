@@ -100,7 +100,7 @@ cat("
     breed.prop[1] ~ dunif(0.5,1)
     breed.prop[2] ~ dunif(0.5,1)
     mean.imm[1]<-0
-    mean.imm[2] ~ dunif(0,50)
+    mean.imm[2] ~ dunif(0,150)
     
     # -------------------------------------------------        
     # 1.3. Priors FOR POPULATION COUNT ERROR
@@ -247,12 +247,12 @@ out$parameter<-row.names(RFBO_IPM$summary)
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 head(out)
 
-TABLE1<-out %>% filter(parameter %in% c('mean.fec[1]','mean.fec[2]','breed.prop[1]','breed.prop[2]','mean.ad.surv[1]','mean.ad.surv[2]','mean.juv.surv[1]','mean.juv.surv[2]')) %>%
+TABLE1<-out %>% filter(parameter %in% c('mean.imm[1]','mean.imm[2]','mean.fec[1]','mean.fec[2]','breed.prop[1]','breed.prop[2]','mean.ad.surv[1]','mean.ad.surv[2]','mean.juv.surv[1]','mean.juv.surv[2]')) %>%
   select(parameter,c(5,3,7))
 
 names(TABLE1)<-c("Parameter","Median","lowerCL","upperCL")
-TABLE1$Parameter<-c("proportion of breeders","proportion of breeders","productivity","productivity","first year survival probability","first year survival probability","annual adult survival probability","annual adult survival probability")
-TABLE1$Period<-rep(c("1969-2000","2000-2022"), 4)
+TABLE1$Parameter<-c("immigrants","immigrants","proportion of breeders","proportion of breeders","productivity","productivity","first year survival probability","first year survival probability","annual adult survival probability","annual adult survival probability")
+TABLE1$Period<-rep(c("1969-2000","2000-2022"), 5)
 TABLE1
 #fwrite(TABLE1,"RFBO_demographic_parameter_estimates_REV1.csv")
 
