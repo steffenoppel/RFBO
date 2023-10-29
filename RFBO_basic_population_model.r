@@ -8,6 +8,9 @@
 # implemented in JAGS based on Kery and Schaub 2012
 # written by steffen.oppel@vogelwarte.ch in November 2023
 
+## NEED TO DO: MIXTURE DOES NOT WORK
+## fix the times when rates change, and introduce an immigration component
+
 library(tidyverse)
 library(jagsUI)
 library(data.table)
@@ -26,6 +29,8 @@ countdata<-data.frame(Year=seq(1969,2023,1),RFBO=NA)
 countdata[countdata$Year==1969,2]<-2277
 countdata[countdata$Year==2000,2]<-4095
 countdata[countdata$Year==2023,2]<-22607
+countdata$phase<-1
+countdata$phase[countdata$Year>2000]<-2
 
 ## Breeding success (%) at five monitoring colonies in the 2022 NW season
 productivity<-c(55.3,61.8,43.6,34.3,47.6)
@@ -43,7 +48,8 @@ productivity<-c(55.3,61.8,43.6,34.3,47.6)
 #Age at maturity: 	3 	from	various web sources
 #breeding propensity: 0.56+0.0361 adapted from Cubaynes et al. 2010
 
-
+hist(rbeta(1000,92,8))
+hist(rbeta(1000,85,17))
 
 ### Calculation of stable age distribution 
 ### CREATING THE POPULATION MATRIX ###
@@ -57,7 +63,7 @@ productivity<-c(55.3,61.8,43.6,34.3,47.6)
 
 
 setwd("C:/STEFFEN/OneDrive - THE ROYAL SOCIETY FOR THE PROTECTION OF BIRDS/STEFFEN/RSPB/PeripheralProjects/RFBO")
-sink("RFBO_popmod_mix.jags")
+sink("RFBO_popmod_2phase.jags")
 cat("
   
   
@@ -74,23 +80,25 @@ cat("
     # 1. PRIORS FOR ALL DATA SETS
     #-------------------------------------------------
     
-    mean.prop.good ~ dunif(0.1,0.9)        ## proportion of years that is good or bad (to allow past variation when good years were more common)
+    #mean.prop.good ~ dunif(0.1,0.9)        ## proportion of years that is good or bad (to allow past variation when good years were more common)
     
     # -------------------------------------------------        
     # 1.1. Priors and constraints FOR FECUNDITY
     # -------------------------------------------------
     
-    mean.fec[1] ~ dunif(0.1,0.5)         ## uninformative prior for breeding success
-    mean.fec[2] ~ dunif(0.4,0.9)         ## uninformative prior for breeding success
+    mean.fec[1] ~ dunif(0.1,0.9)         ## uninformative prior for breeding success
+    mean.fec[2] ~ dunif(0.3,0.9)         ## uninformative prior for breeding success
 
     # -------------------------------------------------        
     # 1.2. Priors and constraints FOR SURVIVAL
     # -------------------------------------------------
     
-    mean.ad.surv[1] ~ dunif(0.7, 0.9)             # Prior for mean survival
-    mean.ad.surv[2] ~ dunif(0.85, 0.95)             # Prior for mean survival
-    mean.juv.surv ~ dunif(0.65,0.9)    ## based on juvenile survival for Balearic shearwaters in the Med.
-    breed.prop ~ dunif(0.5,1)
+    mean.ad.surv[1] ~ dbeta(92, 8)             # Prior for mean survival
+    mean.ad.surv[2] ~ dbeta(92, 8)             # Prior for mean survival
+    mean.juv.surv ~ dbeta(85,17)    ## 
+    mean.juv.surv ~ dbeta(85,17)    ## 
+    breed.prop[1] ~ dunif(0.5,1)
+    breed.prop[2] ~ dunif(0.5,1)
     
     # -------------------------------------------------        
     # 1.3. Priors FOR POPULATION COUNT ERROR
@@ -108,26 +116,26 @@ cat("
     # -------------------------------------------------
 
       ### INITIAL VALUES FOR COMPONENTS FOR YEAR 1
-      JUV[1]<-round(Nad.breed[1]*0.5*(mean.fec[1])*breed.prop)
-      N1[1]<-round(Nad.breed[1]*0.5*(mean.fec[1])*breed.prop*mean.juv.surv)
-      N2[1]<-round(Nad.breed[1]*0.5*(mean.fec[1])*breed.prop*mean.juv.surv*mean.ad.surv[1])
+      JUV[1]<-round(Nad.breed[1]*0.5*(mean.fec[1])*breed.prop[1])
+      N1[1]<-round(Nad.breed[1]*0.5*(mean.fec[1])*breed.prop[1]*mean.juv.surv[phase[1]])
+      N2[1]<-round(Nad.breed[1]*0.5*(mean.fec[1])*breed.prop[1]*mean.juv.surv[phase[1]]*mean.ad.surv[1])
       Nad.breed[1] ~ dunif(2000,2500)         # initial value of population size
-      Nad.nonbreed[1] <- Nad.breed[1] * (1-breed.prop)         # initial value of non-breeder size
-      prop.good[1] ~ dbern(mean.prop.good)
+      Nad.nonbreed[1] <- Nad.breed[1] * (1-breed.prop[1])         # initial value of non-breeder size
+      #prop.good[1] ~ dbern(mean.prop.good)
       
       for (tt in 2:n.years){
       
         ## RANDOMLY DRAW GOOD OR BAD YEAR
-        prop.good[tt] ~ dbern(mean.prop.good)
+        #prop.good[tt] ~ dbern(mean.prop.good)
 
         ## THE PRE-BREEDERS ##
-        JUV[tt] ~ dbin(mean.fec[prop.good[tt]+1],round(0.5 * Nad.breed[tt]*breed.prop))                                   ### number of locally produced FEMALE chicks
-        N1[tt]  ~ dbin(mean.juv.surv, max(2,round(JUV[tt-1])))                                               ### number of 1-year old survivors 
-        N2[tt] ~ dbin(mean.ad.surv[prop.good[tt-1]+1], max(2,round(N1[tt-1])))                                                      ### number of 2-year old survivors
+        JUV[tt] ~ dbin(mean.fec[phase[tt]],round(0.5 * Nad.breed[tt]*breed.prop[phase[tt]]))                                   ### number of locally produced FEMALE chicks
+        N1[tt]  ~ dbin(mean.juv.surv[phase[tt]], max(2,round(JUV[tt-1])))                                               ### number of 1-year old survivors 
+        N2[tt] ~ dbin(mean.ad.surv[phase[tt]], max(2,round(N1[tt-1])))                                                      ### number of 2-year old survivors
 
         ## THE BREEDERS ##
-        Nad.surv[tt] ~ dbin(mean.ad.surv[prop.good[tt-1]+1], max(2,round(N2[tt-1]+Nad.breed[tt-1]+Nad.nonbreed[tt-1])))                            ### the annual number of breeding birds is the sum of old breeders and recent recruits
-        Nad.breed[tt] ~ dbin(breed.prop, max(2,Nad.surv[tt]))                            ### the annual number of breeding birds is the proportion of adult survivors
+        Nad.surv[tt] ~ dbin(mean.ad.surv[phase[tt]], max(2,round(N2[tt-1]+Nad.breed[tt-1]+Nad.nonbreed[tt-1])))                            ### the annual number of breeding birds is the sum of old breeders and recent recruits
+        Nad.breed[tt] ~ dbin(breed.prop[phase[tt]], max(2,Nad.surv[tt]))                            ### the annual number of breeding birds is the proportion of adult survivors
         Nad.nonbreed[tt] <- max(2,Nad.surv[tt]-Nad.breed[tt])                            ### the annual number of nonbreeding birds is the remainder of adult survivors
       } # tt
       
@@ -182,26 +190,28 @@ sink()
 # Bundle data
 jags.data <- list(Nad.count=countdata$RFBO,
                   n.years=length(countdata$RFBO),
+                  phase=countdata$phase,
                   J=as.integer(productivity),
                   BP=rep(100,length(productivity)),
                   n.col=length(productivity))
 
 # Initial values 
-inits <- function(){list(mean.ad.surv = runif(2, 0.85, 0.9),
+inits <- function(){list(Nad.breed=c(runif(1,2000,2500),rep(NA,length(countdata$RFBO)-1)),
+                         mean.ad.surv = runif(2, 0.85, 0.9),
                          mean.fec=runif(2,0.4,0.5))}  ### adjusted for REV1 as frequency of good years
 
 
 # Parameters monitored
-parameters <- c("sigma.obs","mean.prop.good","breed.prop","mean.fec","mean.juv.surv","mean.ad.surv","Nad.breed")
+parameters <- c("sigma.obs","breed.prop","mean.fec","mean.juv.surv","mean.ad.surv","Nad.breed")
 
 # MCMC settings
-ni <- 1500000
+ni <- 250000
 nt <- 10
-nb <- 500000
+nb <- 150000
 nc <- 3
 
 # Call JAGS from R (model created below)
-RFBO_IPM <- jags(jags.data, inits, model.file="C:/STEFFEN/OneDrive - THE ROYAL SOCIETY FOR THE PROTECTION OF BIRDS/STEFFEN/RSPB/PeripheralProjects/RFBO/RFBO_popmod_mix.jags",  ## changed from v4 to v6 on 10 Aug
+RFBO_IPM <- jags(jags.data, inits, model.file="C:/STEFFEN/OneDrive - THE ROYAL SOCIETY FOR THE PROTECTION OF BIRDS/STEFFEN/RSPB/PeripheralProjects/RFBO/RFBO_popmod_2phase.jags",  ## changed from v4 to v6 on 10 Aug
                      parameters.to.save=parameters,
                  n.chains = nc, n.thin = nt, n.burnin = nb,parallel=T,n.iter = ni)
 
@@ -230,11 +240,11 @@ out$parameter<-row.names(RFBO_IPM$summary)
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 head(out)
 
-TABLE1<-out %>% filter(parameter %in% c('mean.fec[1]','mean.fec[2]','mean.prop.good','mean.ad.surv[1]','mean.ad.surv[2]','mean.juv.surv')) %>%
+TABLE1<-out %>% filter(parameter %in% c('mean.fec[1]','mean.fec[2]','breed.prop[1]','breed.prop[2]','mean.ad.surv[1]','mean.ad.surv[2]','mean.juv.surv')) %>%
   select(parameter,c(5,3,7))
 
 names(TABLE1)<-c("Parameter","Median","lowerCL","upperCL")
-TABLE1$Parameter<-c("proportion of good breeding year","productivity (poor year)","productivity (good year)","first year survival probability","annual adult survival probability (poor year)","annual adult survival probability (good year)")
+TABLE1$Parameter<-c("proportion of breeders before 2000","proportion of breeders after 2000","productivity before 2000","productivity after 2000","first year survival probability","annual adult survival probability before 2000","annual adult survival probability after 2000")
 TABLE1
 #fwrite(TABLE1,"RFBO_demographic_parameter_estimates_REV1.csv")
 
@@ -243,8 +253,8 @@ TABLE1
 TABLE1<-TABLE1 %>% mutate(MED=paste(round(Median,3)," (",round(lowerCL,3)," - ", round(upperCL,3),")", sep="")) %>%
   select(Parameter,MED) %>%
   rename(`Median (95% credible interval)`=MED)
-setwd("C:\\STEFFEN\\MANUSCRIPTS\\submitted\\RFBO_pop_model")
-#fwrite(TABLE1,"TABLE1.csv")
+
+fwrite(TABLE1,"TABLE1.csv")
 
 
 
@@ -281,67 +291,8 @@ ggplot()+
         legend.key = element_rect(fill = NA),
         strip.text.x=element_text(size=18, color="black"), 
         strip.background=element_rect(fill="white", colour="black"))
-ggsave("Figure1.tif", width = 9, height = 6, device='tiff', dpi=300)
-ggsave("RFBO_population_projection_REV1_CI50.jpg", width=9, height=6)
+ggsave("RFBO_population_projection.jpg", width=9, height=6)
 
+save.image("RFBO_popmod.RData")
 
-
-
-
-
-#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-# GRAPH 2: EXTINCTION PROBABILITY OVER TIME
-#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-### EXTRACT AND COMBINE DATA FROM ALL CHAINS 
-selcol<-grep("Nad.breed",dimnames(RFBO_IPM$samples[[1]])[[2]])   ## FIND COLUMS WE NEED
-allchainsamples <- data.frame()
-for(chain in 1:3) {
-  samplesout<-as.data.frame(RFBO_IPM$samples[[chain]][,selcol]) %>% gather(key="parm", value="value")
-  allchainsamples <- rbind(allchainsamples,as.data.frame(samplesout))
-}
-
-  
-### CALCULATE EXTINCTION PROBABILITY
-extprop <- allchainsamples %>%
-    mutate(scen.index=as.numeric(str_extract_all(parm,"\\(?[0-9]+\\)?", simplify=TRUE)[,2])) %>%
-    mutate(Scenario=ifelse(scen.index==1,"no eradication","with eradication")) %>%
-    mutate(Year=as.numeric(str_extract_all(parm,"\\(?[0-9]+\\)?", simplify=TRUE)[,1])+1955) %>%
-    
-    mutate(n=1, inc=ifelse(value<500,1,0)) %>%   ### DEFINE EXTINCTION PROBABILITY HERE
-    group_by(Scenario,Year) %>%
-    summarise(ext.prob=sum(inc)/sum(n)) %>%
-    filter(Year>2019)
-  
-head(allchainsamples)
-head(extprop)
-dim(extprop)
-
-
-## CREATE A COLOUR PALETTE FOR THE NUMBER OF CHICKS RELEASED
-colfunc <- colorRampPalette(c("firebrick","cornflowerblue"))
-
-
-ggplot(data=extprop)+
-  geom_line(aes(x=Year, y=ext.prob, color=Scenario), size=1)+
-  
-  ## format axis ticks
-  scale_y_continuous(name="Probability of extinction (%)", limits=c(0,0.35),breaks=seq(0,0.35,0.05), labels=as.character(seq(0,35,5)))+
-  scale_x_continuous(name="Year", breaks=seq(2020,2055,5), labels=as.character(seq(2020,2055,5)))+
-  guides(color=guide_legend(title="Scenario"),fill=guide_legend(title="Scenario"))+
-  scale_colour_manual(palette=colfunc)+
-  
-  ## beautification of the axes
-  theme(panel.background=element_rect(fill="white", colour="black"), panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
-        axis.text.y=element_text(size=14, color="black"),
-        axis.text.x=element_text(size=14, color="black",angle=45, vjust = 1, hjust=1),
-        axis.title=element_text(size=18),
-        legend.text=element_text(size=14, color="black"),
-        legend.title=element_text(size=14, color="black"),
-        legend.key = element_rect(fill = NA),
-        legend.position = c(0.15,0.90),
-        strip.text.x=element_text(size=14, color="black"),
-        strip.text.y=element_text(size=14, color="black"),
-        strip.background=element_rect(fill="white", colour="black"))
-ggsave("Figure2.tif", width = 9, height = 6, device='tiff', dpi=300)
-ggsave("RFBO_extinction_probability_REV1_250.jpg", width=9, height=6)
 
