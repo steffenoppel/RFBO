@@ -95,8 +95,8 @@ cat("
     
     mean.ad.surv[1] ~ dbeta(92, 8)             # Prior for mean survival
     mean.ad.surv[2] ~ dbeta(92, 8)             # Prior for mean survival
-    mean.juv.surv ~ dbeta(85,17)    ## 
-    mean.juv.surv ~ dbeta(85,17)    ## 
+    mean.juv.surv[1] ~ dbeta(85,17)    ## 
+    mean.juv.surv[2] ~ dbeta(85,17)    ## 
     breed.prop[1] ~ dunif(0.5,1)
     breed.prop[2] ~ dunif(0.5,1)
     
@@ -196,8 +196,9 @@ jags.data <- list(Nad.count=countdata$RFBO,
                   n.col=length(productivity))
 
 # Initial values 
-inits <- function(){list(Nad.breed=c(runif(1,2000,2500),rep(NA,length(countdata$RFBO)-1)),
-                         mean.ad.surv = runif(2, 0.85, 0.9),
+inits <- function(){list(Nad.breed=c(runif(1,2275,2280),rep(NA,length(countdata$RFBO)-1)),
+                         mean.juv.surv = rbeta(2, 85, 17),
+                         mean.ad.surv = rbeta(2, 92, 8),
                          mean.fec=runif(2,0.4,0.5))}  ### adjusted for REV1 as frequency of good years
 
 
@@ -240,19 +241,20 @@ out$parameter<-row.names(RFBO_IPM$summary)
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 head(out)
 
-TABLE1<-out %>% filter(parameter %in% c('mean.fec[1]','mean.fec[2]','breed.prop[1]','breed.prop[2]','mean.ad.surv[1]','mean.ad.surv[2]','mean.juv.surv')) %>%
+TABLE1<-out %>% filter(parameter %in% c('mean.fec[1]','mean.fec[2]','breed.prop[1]','breed.prop[2]','mean.ad.surv[1]','mean.ad.surv[2]','mean.juv.surv[1]','mean.juv.surv[2]')) %>%
   select(parameter,c(5,3,7))
 
 names(TABLE1)<-c("Parameter","Median","lowerCL","upperCL")
-TABLE1$Parameter<-c("proportion of breeders before 2000","proportion of breeders after 2000","productivity before 2000","productivity after 2000","first year survival probability","annual adult survival probability before 2000","annual adult survival probability after 2000")
+TABLE1$Parameter<-c("proportion of breeders","proportion of breeders","productivity","productivity","first year survival probability","first year survival probability","annual adult survival probability","annual adult survival probability")
+TABLE1$Period<-rep(c("1969-2000","2000-2022"), 4)
 TABLE1
 #fwrite(TABLE1,"RFBO_demographic_parameter_estimates_REV1.csv")
 
 ## FORMAT TABLE FOR MANUSCRIPT
 
 TABLE1<-TABLE1 %>% mutate(MED=paste(round(Median,3)," (",round(lowerCL,3)," - ", round(upperCL,3),")", sep="")) %>%
-  select(Parameter,MED) %>%
-  rename(`Median (95% credible interval)`=MED)
+  select(Parameter,MED, Period) %>%
+  spread(key=Period, value=MED)
 
 fwrite(TABLE1,"TABLE1.csv")
 

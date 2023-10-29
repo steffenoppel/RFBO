@@ -27,9 +27,10 @@
     # 1.2. Priors and constraints FOR SURVIVAL
     # -------------------------------------------------
     
-    mean.ad.surv[1] ~ dunif(0.7, 0.98)             # Prior for mean survival
-    mean.ad.surv[2] ~ dunif(0.7, 0.98)             # Prior for mean survival
-    mean.juv.surv ~ dunif(0.65,0.9)    ## based on juvenile survival for Balearic shearwaters in the Med.
+    mean.ad.surv[1] ~ dbeta(92, 8)             # Prior for mean survival
+    mean.ad.surv[2] ~ dbeta(92, 8)             # Prior for mean survival
+    mean.juv.surv[1] ~ dbeta(85,17)    ## 
+    mean.juv.surv[2] ~ dbeta(85,17)    ## 
     breed.prop[1] ~ dunif(0.5,1)
     breed.prop[2] ~ dunif(0.5,1)
     
@@ -50,8 +51,8 @@
 
       ### INITIAL VALUES FOR COMPONENTS FOR YEAR 1
       JUV[1]<-round(Nad.breed[1]*0.5*(mean.fec[1])*breed.prop[1])
-      N1[1]<-round(Nad.breed[1]*0.5*(mean.fec[1])*breed.prop[1]*mean.juv.surv)
-      N2[1]<-round(Nad.breed[1]*0.5*(mean.fec[1])*breed.prop[1]*mean.juv.surv*mean.ad.surv[1])
+      N1[1]<-round(Nad.breed[1]*0.5*(mean.fec[1])*breed.prop[1]*mean.juv.surv[phase[1]])
+      N2[1]<-round(Nad.breed[1]*0.5*(mean.fec[1])*breed.prop[1]*mean.juv.surv[phase[1]]*mean.ad.surv[1])
       Nad.breed[1] ~ dunif(2000,2500)         # initial value of population size
       Nad.nonbreed[1] <- Nad.breed[1] * (1-breed.prop[1])         # initial value of non-breeder size
       #prop.good[1] ~ dbern(mean.prop.good)
@@ -63,7 +64,7 @@
 
         ## THE PRE-BREEDERS ##
         JUV[tt] ~ dbin(mean.fec[phase[tt]],round(0.5 * Nad.breed[tt]*breed.prop[phase[tt]]))                                   ### number of locally produced FEMALE chicks
-        N1[tt]  ~ dbin(mean.juv.surv, max(2,round(JUV[tt-1])))                                               ### number of 1-year old survivors 
+        N1[tt]  ~ dbin(mean.juv.surv[phase[tt]], max(2,round(JUV[tt-1])))                                               ### number of 1-year old survivors 
         N2[tt] ~ dbin(mean.ad.surv[phase[tt]], max(2,round(N1[tt-1])))                                                      ### number of 2-year old survivors
 
         ## THE BREEDERS ##
