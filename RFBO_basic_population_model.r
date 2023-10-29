@@ -253,7 +253,7 @@ TABLE1<-out %>% filter(parameter %in% c('mean.imm[1]','mean.imm[2]','mean.fec[1]
 names(TABLE1)<-c("Parameter","Median","lowerCL","upperCL")
 TABLE1$Parameter<-c("immigrants","immigrants","proportion of breeders","proportion of breeders","productivity","productivity","first year survival probability","first year survival probability","annual adult survival probability","annual adult survival probability")
 TABLE1$Period<-rep(c("1969-2000","2000-2022"), 5)
-TABLE1
+
 #fwrite(TABLE1,"RFBO_demographic_parameter_estimates_REV1.csv")
 
 ## FORMAT TABLE FOR MANUSCRIPT
@@ -261,7 +261,7 @@ TABLE1
 TABLE1<-TABLE1 %>% mutate(MED=paste(round(Median,3)," (",round(lowerCL,3)," - ", round(upperCL,3),")", sep="")) %>%
   select(Parameter,MED, Period) %>%
   spread(key=Period, value=MED)
-
+TABLE1
 fwrite(TABLE1,"TABLE1.csv")
 
 
