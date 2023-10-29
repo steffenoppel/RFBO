@@ -63,7 +63,7 @@ hist(rbeta(1000,85,17))
 
 
 setwd("C:/STEFFEN/OneDrive - THE ROYAL SOCIETY FOR THE PROTECTION OF BIRDS/STEFFEN/RSPB/PeripheralProjects/RFBO")
-sink("RFBO_popmod_2phase.jags")
+sink("RFBO_popmod_2phase_immigration.jags")
 cat("
   
   
@@ -99,6 +99,8 @@ cat("
     mean.juv.surv[2] ~ dbeta(85,17)    ## 
     breed.prop[1] ~ dunif(0.5,1)
     breed.prop[2] ~ dunif(0.5,1)
+    mean.imm[1]<-0
+    mean.imm[2] ~ dunif(0,50)
     
     # -------------------------------------------------        
     # 1.3. Priors FOR POPULATION COUNT ERROR
@@ -122,11 +124,15 @@ cat("
       Nad.breed[1] ~ dunif(2000,2500)         # initial value of population size
       Nad.nonbreed[1] <- Nad.breed[1] * (1-breed.prop[1])         # initial value of non-breeder size
       #prop.good[1] ~ dbern(mean.prop.good)
+      ann.imm[1]<-0
       
       for (tt in 2:n.years){
       
         ## RANDOMLY DRAW GOOD OR BAD YEAR
         #prop.good[tt] ~ dbern(mean.prop.good)
+        
+        ## RANDOMLY DRAW GOOD OR BAD YEAR
+        ann.imm[tt] ~ dpois(mean.imm[phase[tt]])
 
         ## THE PRE-BREEDERS ##
         JUV[tt] ~ dbin(mean.fec[phase[tt]],round(0.5 * Nad.breed[tt]*breed.prop[phase[tt]]))                                   ### number of locally produced FEMALE chicks
@@ -135,7 +141,7 @@ cat("
 
         ## THE BREEDERS ##
         Nad.surv[tt] ~ dbin(mean.ad.surv[phase[tt]], max(2,round(N2[tt-1]+Nad.breed[tt-1]+Nad.nonbreed[tt-1])))                            ### the annual number of breeding birds is the sum of old breeders and recent recruits
-        Nad.breed[tt] ~ dbin(breed.prop[phase[tt]], max(2,Nad.surv[tt]))                            ### the annual number of breeding birds is the proportion of adult survivors
+        Nad.breed[tt] ~ dbin(breed.prop[phase[tt]], max(2,Nad.surv[tt]+ann.imm[tt]))                            ### the annual number of breeding birds is the proportion of adult survivors
         Nad.nonbreed[tt] <- max(2,Nad.surv[tt]-Nad.breed[tt])                            ### the annual number of nonbreeding birds is the remainder of adult survivors
       } # tt
       
@@ -203,7 +209,7 @@ inits <- function(){list(Nad.breed=c(runif(1,2275,2280),rep(NA,length(countdata$
 
 
 # Parameters monitored
-parameters <- c("sigma.obs","breed.prop","mean.fec","mean.juv.surv","mean.ad.surv","Nad.breed")
+parameters <- c("mean.imm","breed.prop","mean.fec","mean.juv.surv","mean.ad.surv","Nad.breed")
 
 # MCMC settings
 ni <- 250000
@@ -212,7 +218,7 @@ nb <- 150000
 nc <- 3
 
 # Call JAGS from R (model created below)
-RFBO_IPM <- jags(jags.data, inits, model.file="C:/STEFFEN/OneDrive - THE ROYAL SOCIETY FOR THE PROTECTION OF BIRDS/STEFFEN/RSPB/PeripheralProjects/RFBO/RFBO_popmod_2phase.jags",  ## changed from v4 to v6 on 10 Aug
+RFBO_IPM <- jags(jags.data, inits, model.file="C:/STEFFEN/OneDrive - THE ROYAL SOCIETY FOR THE PROTECTION OF BIRDS/STEFFEN/RSPB/PeripheralProjects/RFBO/RFBO_popmod_2phase_immigration.jags",  ## changed from v4 to v6 on 10 Aug
                      parameters.to.save=parameters,
                  n.chains = nc, n.thin = nt, n.burnin = nb,parallel=T,n.iter = ni)
 
