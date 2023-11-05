@@ -8,8 +8,8 @@
 # implemented in JAGS based on Kery and Schaub 2012
 # written by steffen.oppel@vogelwarte.ch in November 2023
 
-## NEED TO DO: MIXTURE DOES NOT WORK
-## fix the times when rates change, and introduce an immigration component
+## NEED TO DO: NARROW DOWN PRIORS FOR PRODUCTIVITY AND BREEDING PROPENSITY
+## model struggles to converge because too many things can change at once
 
 library(tidyverse)
 library(jagsUI)
@@ -50,6 +50,9 @@ productivity<-c(55.3,61.8,43.6,34.3,47.6)
 
 hist(rbeta(1000,92,8))
 hist(rbeta(1000,85,17))
+hist(rbeta(1000,45,55))
+hist(rbeta(1000,90,10))
+
 
 ### Calculation of stable age distribution 
 ### CREATING THE POPULATION MATRIX ###
@@ -86,21 +89,29 @@ cat("
     # 1.1. Priors and constraints FOR FECUNDITY
     # -------------------------------------------------
     
-    mean.fec[1] ~ dunif(0.1,0.9)         ## uninformative prior for breeding success
-    mean.fec[2] ~ dunif(0.3,0.9)         ## uninformative prior for breeding success
+    mean.fec[1] ~ dbeta(45,55) I(0.001,0.999)        ## uninformative prior for breeding success
+    mean.fec[2] ~ dbeta(45,55) I(0.001,0.999)        ## uninformative prior for breeding success
+    #mean.fec[1] ~ dunif(0.3,0.8)         ## uninformative prior for breeding success
+    #mean.fec[2] ~ dunif(0.3,0.8)         ## uninformative prior for breeding success
 
     # -------------------------------------------------        
     # 1.2. Priors and constraints FOR SURVIVAL
     # -------------------------------------------------
     
-    mean.ad.surv[1] ~ dbeta(92, 8)             # Prior for mean survival
-    mean.ad.surv[2] ~ dbeta(92, 8)             # Prior for mean survival
-    mean.juv.surv[1] ~ dbeta(85,17)    ## 
-    mean.juv.surv[2] ~ dbeta(85,17)    ## 
-    breed.prop[1] ~ dunif(0.5,1)
-    breed.prop[2] ~ dunif(0.5,1)
+    mean.ad.surv[1] ~ dbeta(92, 8) I(0.001,0.999)            # Prior for mean survival
+    mean.ad.surv[2] ~ dbeta(92, 8) I(0.001,0.999)            # Prior for mean survival
+    #mean.ad.surv[1] <- 0.92             # Prior for mean survival
+    #mean.ad.surv[2] <- 0.92             # Prior for mean survival
+    mean.juv.surv[1] ~ dbeta(85,17) I(0.001,0.999)    ## 
+    mean.juv.surv[2] ~ dbeta(85,17) I(0.001,0.999)   ##
+    #mean.juv.surv[1] <- 0.85    ## 
+    #mean.juv.surv[2] <- 0.85    ## 
+    #breed.prop[1] ~ dbeta(90,10) I(0.001,0.999)
+    #breed.prop[2] ~ dbeta(90,10) I(0.001,0.999)
+    breed.prop[1] <- 1
+    breed.prop[2] <- 1
     mean.imm[1]<-0
-    mean.imm[2] ~ dunif(0,150)
+    mean.imm[2]<-10
     
     # -------------------------------------------------        
     # 1.3. Priors FOR POPULATION COUNT ERROR
@@ -121,7 +132,7 @@ cat("
       JUV[1]<-round(Nad.breed[1]*0.5*(mean.fec[1])*breed.prop[1])
       N1[1]<-round(Nad.breed[1]*0.5*(mean.fec[1])*breed.prop[1]*mean.juv.surv[phase[1]])
       N2[1]<-round(Nad.breed[1]*0.5*(mean.fec[1])*breed.prop[1]*mean.juv.surv[phase[1]]*mean.ad.surv[1])
-      Nad.breed[1] ~ dunif(2000,2500)         # initial value of population size
+      Nad.breed[1] <- 2277         # initial value of population size
       Nad.nonbreed[1] <- Nad.breed[1] * (1-breed.prop[1])         # initial value of non-breeder size
       #prop.good[1] ~ dbern(mean.prop.good)
       ann.imm[1]<-0
@@ -202,19 +213,19 @@ jags.data <- list(Nad.count=countdata$RFBO,
                   n.col=length(productivity))
 
 # Initial values 
-inits <- function(){list(Nad.breed=c(runif(1,2275,2280),rep(NA,length(countdata$RFBO)-1)),
+inits <- function(){list(#Nad.breed=c(runif(1,2275,2280),rep(NA,length(countdata$RFBO)-1)),
                          mean.juv.surv = rbeta(2, 85, 17),
                          mean.ad.surv = rbeta(2, 92, 8),
-                         mean.fec=runif(2,0.4,0.5))}  ### adjusted for REV1 as frequency of good years
+                         mean.fec=rbeta(2,45,55))}  ### adjusted for REV1 as frequency of good years
 
 
 # Parameters monitored
 parameters <- c("mean.imm","breed.prop","mean.fec","mean.juv.surv","mean.ad.surv","Nad.breed")
 
 # MCMC settings
-ni <- 250000
+ni <- 50000
 nt <- 10
-nb <- 150000
+nb <- 25000
 nc <- 3
 
 # Call JAGS from R (model created below)
@@ -224,7 +235,7 @@ RFBO_IPM <- jags(jags.data, inits, model.file="C:/STEFFEN/OneDrive - THE ROYAL S
 
 
 ### save model workspace
-#save.image("RFBO_IPM_REV1.RData")
+#save.image("RFBO_IPM_immigration.RData")
 load("RFBO_IPM_REV1.RData")
 
 
