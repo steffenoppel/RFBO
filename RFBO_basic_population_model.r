@@ -56,8 +56,8 @@ productivity<-c(55.3,61.8,43.6,34.3,47.6)
 hist(rbeta(1000,92,8))
 hist(rbeta(1000,85,17))
 hist(rbeta(1000,52,45))
-hist(rbeta(1000,60,85))
-hist(rbeta(1000,90,10))
+hist(rbeta(1000,50,85))
+hist(rbeta(1000,95,10))
 
 
 ### Calculation of stable age distribution 
@@ -72,7 +72,7 @@ hist(rbeta(1000,90,10))
 
 
 setwd("C:/STEFFEN/OneDrive - THE ROYAL SOCIETY FOR THE PROTECTION OF BIRDS/STEFFEN/RSPB/PeripheralProjects/RFBO")
-sink("RFBO_popmod_2phase_free.jags")
+sink("RFBO_popmod_2phase_free_imm.jags")
 cat("
   
   
@@ -95,7 +95,7 @@ cat("
     # 1.1. Priors and constraints FOR FECUNDITY
     # -------------------------------------------------
     
-    mean.fec[1] ~ dbeta(60,85) T(0.01,0.99)        ## uninformative prior for breeding success
+    mean.fec[1] ~ dbeta(50,85) T(0.01,0.99)        ## uninformative prior for breeding success
     mean.fec[2] ~ dbeta(52,45) T(0.01,0.99)        ## uninformative prior for breeding success
     #mean.fec[1] ~ dunif(0.1,0.9)         ## uninformative prior for breeding success
     #mean.fec[2] ~ dunif(0.3,0.9)         ## uninformative prior for breeding success
@@ -105,19 +105,21 @@ cat("
     # -------------------------------------------------
     
     mean.ad.surv[1] ~ dbeta(92, 8) T(0.01,0.99)            # Prior for mean survival
-    mean.ad.surv[2] ~ dbeta(92, 8) T(0.01,0.99)            # Prior for mean survival
+    mean.ad.surv[2] ~ dbeta(93, 8) T(0.01,0.99)            # Prior for mean survival
     #mean.ad.surv[1] <- 0.92             # Prior for mean survival
     #mean.ad.surv[2] <- 0.92             # Prior for mean survival
     mean.juv.surv[1] ~ dbeta(85,17) T(0.01,0.99)    ## 
-    mean.juv.surv[2] ~ dbeta(85,17) T(0.01,0.99)   ##
+    mean.juv.surv[2] ~ dbeta(87,17) T(0.01,0.99)   ##
     #mean.juv.surv[2] <- 0.85  ## avoid different rates for juveniles
     #mean.juv.surv[1] <- 0.85  ## avoid different rates for juveniles
     breed.prop[1] ~ dbeta(90,10) T(0.01,0.99)
-    breed.prop[2] ~ dbeta(90,10) T(0.01,0.99)
+    breed.prop[2] ~ dbeta(95,10) T(0.01,0.99)
     #breed.prop[1] ~ dunif(0.5,1)
     #breed.prop[2] ~ dunif(0.5,1)
     #breed.prop[1] <- 0.9
     #breed.prop[2] <- 0.9
+    mean.imm[1]<-0
+    mean.imm[2]<-50
 
     
     # -------------------------------------------------        
@@ -139,15 +141,15 @@ cat("
       JUV[1]<-round(Nad.breed[1]*0.5*(mean.fec[1])*breed.prop[1])
       N1[1]<-round(Nad.breed[1]*0.5*(mean.fec[1])*breed.prop[1]*mean.juv.surv[phase[1]])
       N2[1]<-round(Nad.breed[1]*0.5*(mean.fec[1])*breed.prop[1]*mean.juv.surv[phase[1]]*mean.ad.surv[1])
-      Nad.breed[1] <-2277 #~ dunif(2000,2500)         # initial value of population size
+      Nad.breed[1] ~ dunif(2000,2500)         # initial value of population size
       Nad.nonbreed[1] <- Nad.breed[1] * (1-breed.prop[1])         # initial value of non-breeder size
       #prop.good[1] ~ dbern(mean.prop.good)
-      #ann.imm[1]<-0
+      ann.imm[1]<-0
       
       for (tt in 2:n.years){
       
-        ## RANDOMLY DRAW GOOD OR BAD YEAR
-        #prop.good[tt] ~ dbern(mean.prop.good)
+        ## RANDOMLY DRAW ANNUAL IMMIGRANTS
+        ann.imm[tt] ~ dpois(mean.imm[phase[tt]])
         
 
         ## THE PRE-BREEDERS ##
@@ -157,7 +159,7 @@ cat("
 
         ## THE BREEDERS ##
         Nad.surv[tt] ~ dbin(mean.ad.surv[phase[tt]], max(2,round(N2[tt-1]+Nad.breed[tt-1]+Nad.nonbreed[tt-1])))                            ### the annual number of breeding birds is the sum of old breeders and recent recruits
-        Nad.breed[tt] ~ dbin(breed.prop[phase[tt]], max(2,Nad.surv[tt]))                            ### the annual number of breeding birds is the proportion of adult survivors
+        Nad.breed[tt] ~ dbin(breed.prop[phase[tt]], max(2,Nad.surv[tt]+ann.imm[tt]))                            ### the annual number of breeding birds is the proportion of adult survivors
         Nad.nonbreed[tt] <- max(2,Nad.surv[tt]-Nad.breed[tt])                            ### the annual number of nonbreeding birds is the remainder of adult survivors
       } # tt
       
@@ -238,16 +240,11 @@ nb <- 25000
 nc <- 3
 
 # Call JAGS from R (model created below)
-RFBO_IPM <- jags(jags.data, inits, model.file="C:/STEFFEN/OneDrive - THE ROYAL SOCIETY FOR THE PROTECTION OF BIRDS/STEFFEN/RSPB/PeripheralProjects/RFBO/RFBO_popmod_2phase_free.jags",  ## changed from v4 to v6 on 10 Aug
+RFBO_IPM <- jags(jags.data, inits, model.file="C:/STEFFEN/OneDrive - THE ROYAL SOCIETY FOR THE PROTECTION OF BIRDS/STEFFEN/RSPB/PeripheralProjects/RFBO/RFBO_popmod_2phase_free_imm.jags",  ## changed from v4 to v6 on 10 Aug
                      parameters.to.save=parameters,
                  n.chains = nc, n.thin = nt, n.burnin = nb,parallel=T,n.cores=nc,
                  #Rhat.limit=1.5,iter.increment=1000,max.iter=1000000) ### for autojags call
                  n.iter = ni)   ## for normal jags call
-
-
-### save model workspace
-#save.image("RFBO_IPM_converged.RData")
-load("RFBO_IPM_REV1.RData")
 
 
 
@@ -284,7 +281,7 @@ TABLE1<-TABLE1 %>% mutate(MED=paste(round(Median,3)," (",round(lowerCL,3)," - ",
   select(Parameter,MED, Period) %>%
   spread(key=Period, value=MED)
 TABLE1
-fwrite(TABLE1,"TABLE1.csv")
+#fwrite(TABLE1,"TABLE1.csv")
 
 
 
@@ -293,21 +290,21 @@ fwrite(TABLE1,"TABLE1.csv")
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 ## retrieve the past population estimates (2006-2019)
-RFBOpop<-out[(grep("Nad.breed\\[",out$parameter)),c(12,5,4,6)] %>%
+RFBOpop<-out[(grep("Nad.breed\\[",out$parameter)),c(12,1,3,7)] %>%
   mutate(Year=seq(1969,2023)) %>%
-  rename(parm=parameter,median=`50%`,lcl=`25%`,ucl=`75%`) %>%
-  dplyr::select(parm,Year,median,lcl,ucl)
+  rename(parm=parameter,lcl=`2.5%`,ucl=`97.5%`) %>%
+  dplyr::select(parm,Year,mean,lcl,ucl)
 
 
 ### CREATE PLOT FOR BASELINE TRAJECTORY
 
 ggplot()+
-  geom_line(data=RFBOpop, aes(x=Year, y=median), linewidth=1)+
+  geom_line(data=RFBOpop, aes(x=Year, y=mean), linewidth=1)+
   geom_ribbon(data=RFBOpop,aes(x=Year, ymin=lcl,ymax=ucl),alpha=0.2)+
   geom_point(data=countdata, aes(x=Year, y=RFBO), size=3, colour="firebrick")+
   
   ## format axis ticks
-  scale_y_continuous(name="Red-footed Booby pairs", limits=c(0,45000),breaks=seq(0,45000,5000))+
+  scale_y_continuous(name="Red-footed Booby pairs", limits=c(0,100000),breaks=seq(0,100000,10000))+
   scale_x_continuous(name="Year", limits=c(1969,2023), breaks=seq(1969,2023,5))+
 
   ## beautification of the axes
@@ -321,8 +318,18 @@ ggplot()+
         legend.key = element_rect(fill = NA),
         strip.text.x=element_text(size=18, color="black"), 
         strip.background=element_rect(fill="white", colour="black"))
-ggsave("RFBO_population_projection_no_immigration.jpg", width=9, height=6)
+ggsave("RFBO_population_projection_with_immigration.jpg", width=9, height=6)
+
+
+
+
+
 
 save.image("RFBO_popmod.RData")
+
+### save model workspace
+#save.image("RFBO_IPM_converged.RData")
+load("RFBO_IPM_REV1.RData")
+
 
 
