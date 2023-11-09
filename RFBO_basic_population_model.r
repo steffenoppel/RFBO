@@ -205,7 +205,7 @@ sink()
 #########################################################################
 
 ### INTRODUCE RANDOM NUMBERS IN COUNT DATA TO AVOID SLICER STUCK ERROR DUE TO 0 VARIATION
-countdata$RFBO[17]<-as.integer(runif(1,countdata$RFBO[1],countdata$RFBO[32]))
+#countdata$RFBO[17]<-as.integer(runif(1,countdata$RFBO[1],countdata$RFBO[32]))
 countdata$RFBO[46]<-as.integer(runif(1,countdata$RFBO[32],countdata$RFBO[55]))
 
 # Bundle data
@@ -236,7 +236,7 @@ nc <- 3
 RFBO_IPM <- autojags(jags.data, inits, model.file="C:/STEFFEN/OneDrive - THE ROYAL SOCIETY FOR THE PROTECTION OF BIRDS/STEFFEN/RSPB/PeripheralProjects/RFBO/RFBO_popmod_2phase.jags",  ## changed from v4 to v6 on 10 Aug
                      parameters.to.save=parameters,
                  n.chains = nc, n.thin = nt, n.burnin = nb,parallel=T,n.cores=nc,
-                 Rhat.limit=1.2,iter.increment=1000) ### for autojags call
+                 Rhat.limit=1.5,iter.increment=1000,max.iter=1000000) ### for autojags call
                  #n.iter = ni)   ## for normal jags call
 
 
