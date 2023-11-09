@@ -93,8 +93,8 @@ cat("
     # 1.1. Priors and constraints FOR FECUNDITY
     # -------------------------------------------------
     
-    #mean.fec[1] ~ dbeta(45,55) I(0.001,0.999)        ## uninformative prior for breeding success
-    #mean.fec[2] ~ dbeta(45,55) I(0.001,0.999)        ## uninformative prior for breeding success
+    #mean.fec[1] ~ dbeta(45,55) T(0.01,0.99)        ## uninformative prior for breeding success
+    #mean.fec[2] ~ dbeta(45,55) T(0.01,0.99)        ## uninformative prior for breeding success
     mean.fec[1] ~ dunif(0.1,0.9)         ## uninformative prior for breeding success
     mean.fec[2] ~ dunif(0.3,0.9)         ## uninformative prior for breeding success
 
@@ -102,15 +102,15 @@ cat("
     # 1.2. Priors and constraints FOR SURVIVAL
     # -------------------------------------------------
     
-    mean.ad.surv[1] ~ dbeta(92, 8) I(0.001,0.999)            # Prior for mean survival
-    mean.ad.surv[2] ~ dbeta(92, 8) I(0.001,0.999)            # Prior for mean survival
+    mean.ad.surv[1] ~ dbeta(92, 8) T(0.01,0.99)            # Prior for mean survival
+    mean.ad.surv[2] ~ dbeta(92, 8) T(0.01,0.99)            # Prior for mean survival
     #mean.ad.surv[1] <- 0.92             # Prior for mean survival
     #mean.ad.surv[2] <- 0.92             # Prior for mean survival
-    mean.juv.surv[1] ~ dbeta(85,17) I(0.001,0.999)    ## 
-    #mean.juv.surv[2] ~ dbeta(85,17) I(0.001,0.999)   ##
+    mean.juv.surv[1] ~ dbeta(85,17) T(0.01,0.99)    ## 
+    #mean.juv.surv[2] ~ dbeta(85,17) T(0.01,0.99)   ##
     mean.juv.surv[2] <- mean.juv.surv[1]  ## avoid different rates for juveniles
-    #breed.prop[1] ~ dbeta(90,10) I(0.001,0.999)
-    #breed.prop[2] ~ dbeta(90,10) I(0.001,0.999)
+    #breed.prop[1] ~ dbeta(90,10) T(0.01,0.99)
+    #breed.prop[2] ~ dbeta(90,10) T(0.01,0.99)
     breed.prop[1] ~ dunif(0.5,1)
     breed.prop[2] ~ dunif(0.5,1)
 
@@ -134,7 +134,7 @@ cat("
       JUV[1]<-round(Nad.breed[1]*0.5*(mean.fec[1])*breed.prop[1])
       N1[1]<-round(Nad.breed[1]*0.5*(mean.fec[1])*breed.prop[1]*mean.juv.surv[phase[1]])
       N2[1]<-round(Nad.breed[1]*0.5*(mean.fec[1])*breed.prop[1]*mean.juv.surv[phase[1]]*mean.ad.surv[1])
-      Nad.breed[1] ~ dunif(2270,2280)         # initial value of population size
+      Nad.breed[1] ~ dunif(2000,2500)         # initial value of population size
       Nad.nonbreed[1] <- Nad.breed[1] * (1-breed.prop[1])         # initial value of non-breeder size
       #prop.good[1] ~ dbern(mean.prop.good)
       #ann.imm[1]<-0
@@ -213,7 +213,7 @@ jags.data <- list(Nad.count=countdata$RFBO,
                   n.col=length(productivity))
 
 # Initial values 
-inits <- function(){list(#Nad.breed=c(runif(1,2275,2280),rep(NA,length(countdata$RFBO)-1)),
+inits <- function(){list(Nad.breed=c(runif(1,2275,2280),rep(NA,length(countdata$RFBO)-1)),
                          mean.juv.surv = rbeta(2, 85, 17),
                          mean.ad.surv = rbeta(2, 92, 8),
                          mean.fec=rbeta(2,45,55))}  ### adjusted for REV1 as frequency of good years
