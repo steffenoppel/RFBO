@@ -204,6 +204,10 @@ sink()
 # 4. SET UP AND RUN INTEGRATED POPULATION MODEL
 #########################################################################
 
+### INTRODUCE RANDOM NUMBERS IN COUNT DATA TO AVOID SLICER STUCK ERROR DUE TO 0 VARIATION
+countdata$RFBO[17]<-as.integer(runif(1,countdata$RFBO[1],countdata$RFBO[32]))
+countdata$RFBO[46]<-as.integer(runif(1,countdata$RFBO[32],countdata$RFBO[55]))
+
 # Bundle data
 jags.data <- list(Nad.count=countdata$RFBO,
                   n.years=length(countdata$RFBO),
