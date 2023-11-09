@@ -14,6 +14,7 @@
 
 ## dreaded 'slicer stuck at value with infinite density' may occur because there is no variation: https://sourceforge.net/p/mcmc-jags/discussion/610037/thread/1b1ea77d/
 
+### REVISED APPROACH 9 NOV 2023: FIXED SURVIVAL and prop.breeding to reduce ambiguity
 
 library(tidyverse)
 library(jagsUI)
@@ -54,7 +55,8 @@ productivity<-c(55.3,61.8,43.6,34.3,47.6)
 
 hist(rbeta(1000,92,8))
 hist(rbeta(1000,85,17))
-hist(rbeta(1000,45,55))
+hist(rbeta(1000,52,45))
+hist(rbeta(1000,60,85))
 hist(rbeta(1000,90,10))
 
 
@@ -70,7 +72,7 @@ hist(rbeta(1000,90,10))
 
 
 setwd("C:/STEFFEN/OneDrive - THE ROYAL SOCIETY FOR THE PROTECTION OF BIRDS/STEFFEN/RSPB/PeripheralProjects/RFBO")
-sink("RFBO_popmod_2phase.jags")
+sink("RFBO_popmod_2phase_free.jags")
 cat("
   
   
@@ -93,10 +95,10 @@ cat("
     # 1.1. Priors and constraints FOR FECUNDITY
     # -------------------------------------------------
     
-    #mean.fec[1] ~ dbeta(45,55) T(0.01,0.99)        ## uninformative prior for breeding success
-    #mean.fec[2] ~ dbeta(45,55) T(0.01,0.99)        ## uninformative prior for breeding success
-    mean.fec[1] ~ dunif(0.1,0.9)         ## uninformative prior for breeding success
-    mean.fec[2] ~ dunif(0.3,0.9)         ## uninformative prior for breeding success
+    mean.fec[1] ~ dbeta(60,85) T(0.01,0.99)        ## uninformative prior for breeding success
+    mean.fec[2] ~ dbeta(52,45) T(0.01,0.99)        ## uninformative prior for breeding success
+    #mean.fec[1] ~ dunif(0.1,0.9)         ## uninformative prior for breeding success
+    #mean.fec[2] ~ dunif(0.3,0.9)         ## uninformative prior for breeding success
 
     # -------------------------------------------------        
     # 1.2. Priors and constraints FOR SURVIVAL
@@ -107,19 +109,22 @@ cat("
     #mean.ad.surv[1] <- 0.92             # Prior for mean survival
     #mean.ad.surv[2] <- 0.92             # Prior for mean survival
     mean.juv.surv[1] ~ dbeta(85,17) T(0.01,0.99)    ## 
-    #mean.juv.surv[2] ~ dbeta(85,17) T(0.01,0.99)   ##
-    mean.juv.surv[2] <- mean.juv.surv[1]  ## avoid different rates for juveniles
-    #breed.prop[1] ~ dbeta(90,10) T(0.01,0.99)
-    #breed.prop[2] ~ dbeta(90,10) T(0.01,0.99)
-    breed.prop[1] ~ dunif(0.5,1)
-    breed.prop[2] ~ dunif(0.5,1)
+    mean.juv.surv[2] ~ dbeta(85,17) T(0.01,0.99)   ##
+    #mean.juv.surv[2] <- 0.85  ## avoid different rates for juveniles
+    #mean.juv.surv[1] <- 0.85  ## avoid different rates for juveniles
+    breed.prop[1] ~ dbeta(90,10) T(0.01,0.99)
+    breed.prop[2] ~ dbeta(90,10) T(0.01,0.99)
+    #breed.prop[1] ~ dunif(0.5,1)
+    #breed.prop[2] ~ dunif(0.5,1)
+    #breed.prop[1] <- 0.9
+    #breed.prop[2] <- 0.9
 
     
     # -------------------------------------------------        
     # 1.3. Priors FOR POPULATION COUNT ERROR
     # -------------------------------------------------
-    sigma.obs ~ dunif(0,10)  #Prior for SD of observation process (variation in detectability)
-    tau.obs<-pow(sigma.obs,-2)
+    # sigma.obs ~ dunif(0,1)  #Prior for SD of observation process (variation in detectability)
+    # tau.obs<-pow(sigma.obs,-2)
 
     
     #-------------------------------------------------  
@@ -134,7 +139,7 @@ cat("
       JUV[1]<-round(Nad.breed[1]*0.5*(mean.fec[1])*breed.prop[1])
       N1[1]<-round(Nad.breed[1]*0.5*(mean.fec[1])*breed.prop[1]*mean.juv.surv[phase[1]])
       N2[1]<-round(Nad.breed[1]*0.5*(mean.fec[1])*breed.prop[1]*mean.juv.surv[phase[1]]*mean.ad.surv[1])
-      Nad.breed[1] ~ dunif(2000,2500)         # initial value of population size
+      Nad.breed[1] <-2277 #~ dunif(2000,2500)         # initial value of population size
       Nad.nonbreed[1] <- Nad.breed[1] * (1-breed.prop[1])         # initial value of non-breeder size
       #prop.good[1] ~ dbern(mean.prop.good)
       #ann.imm[1]<-0
@@ -171,22 +176,22 @@ cat("
     # -------------------------------------------------
       ## Observation process
     
-      for (t in 1:n.years){
-        Nad.count[t] ~ dnorm(Nad.breed[t], tau.obs)# Distribution for random error in observed numbers (counts)
-      }# run this loop over t nyears
+      # for (t in 1:n.years){
+      #   Nad.count[t] ~ dnorm(Nad.breed[t], tau.obs)# Distribution for random error in observed numbers (counts)
+      # }# run this loop over t nyears
     
     
     # -------------------------------------------------        
     # 4. DERIVED PARAMETERS
     # -------------------------------------------------
 
-    ## DERIVED POPULATION GROWTH RATE 
-      for (tt in 2:n.years){
-        lambda[tt]<-Nad.breed[tt]/max(1,Nad.breed[tt-1])
-        loglam[tt]<-log(lambda[tt])
-      } ## end of tt
-      
-      #growth.rate <- exp((1/(n.years-1))*sum(loglam[1:(n.years-1)]))  ### geometric mean growth rate
+    # ## DERIVED POPULATION GROWTH RATE 
+    #   for (tt in 2:n.years){
+    #     lambda[tt]<-Nad.breed[tt]/max(1,Nad.breed[tt-1])
+    #     loglam[tt]<-log(lambda[tt])
+    #   } ## end of tt
+    #   
+    #   #growth.rate <- exp((1/(n.years-1))*sum(loglam[1:(n.years-1)]))  ### geometric mean growth rate
       
     
   }  ## END MODEL LOOP
@@ -206,7 +211,7 @@ sink()
 
 ### INTRODUCE RANDOM NUMBERS IN COUNT DATA TO AVOID SLICER STUCK ERROR DUE TO 0 VARIATION
 #countdata$RFBO[17]<-as.integer(runif(1,countdata$RFBO[1],countdata$RFBO[32]))
-countdata$RFBO[46]<-as.integer(runif(1,countdata$RFBO[32],countdata$RFBO[55]))
+#countdata$RFBO[46]<-as.integer(runif(1,countdata$RFBO[32],countdata$RFBO[55]))
 
 # Bundle data
 jags.data <- list(Nad.count=countdata$RFBO,
@@ -217,7 +222,7 @@ jags.data <- list(Nad.count=countdata$RFBO,
                   n.col=length(productivity))
 
 # Initial values 
-inits <- function(){list(Nad.breed=c(runif(1,2275,2280),rep(NA,length(countdata$RFBO)-1)),
+inits <- function(){list(#Nad.breed=c(runif(1,2275,2280),rep(NA,length(countdata$RFBO)-1)),
                          mean.juv.surv = rbeta(2, 85, 17),
                          mean.ad.surv = rbeta(2, 92, 8),
                          mean.fec=rbeta(2,45,55))}  ### adjusted for REV1 as frequency of good years
@@ -233,15 +238,15 @@ nb <- 25000
 nc <- 3
 
 # Call JAGS from R (model created below)
-RFBO_IPM <- autojags(jags.data, inits, model.file="C:/STEFFEN/OneDrive - THE ROYAL SOCIETY FOR THE PROTECTION OF BIRDS/STEFFEN/RSPB/PeripheralProjects/RFBO/RFBO_popmod_2phase.jags",  ## changed from v4 to v6 on 10 Aug
+RFBO_IPM <- jags(jags.data, inits, model.file="C:/STEFFEN/OneDrive - THE ROYAL SOCIETY FOR THE PROTECTION OF BIRDS/STEFFEN/RSPB/PeripheralProjects/RFBO/RFBO_popmod_2phase_free.jags",  ## changed from v4 to v6 on 10 Aug
                      parameters.to.save=parameters,
                  n.chains = nc, n.thin = nt, n.burnin = nb,parallel=T,n.cores=nc,
-                 Rhat.limit=1.5,iter.increment=1000,max.iter=1000000) ### for autojags call
-                 #n.iter = ni)   ## for normal jags call
+                 #Rhat.limit=1.5,iter.increment=1000,max.iter=1000000) ### for autojags call
+                 n.iter = ni)   ## for normal jags call
 
 
 ### save model workspace
-#save.image("RFBO_IPM_immigration.RData")
+#save.image("RFBO_IPM_converged.RData")
 load("RFBO_IPM_REV1.RData")
 
 
@@ -302,7 +307,7 @@ ggplot()+
   geom_point(data=countdata, aes(x=Year, y=RFBO), size=3, colour="firebrick")+
   
   ## format axis ticks
-  scale_y_continuous(name="Red-footed Booby pairs", limits=c(0,25000),breaks=seq(0,25000,5000))+
+  scale_y_continuous(name="Red-footed Booby pairs", limits=c(0,45000),breaks=seq(0,45000,5000))+
   scale_x_continuous(name="Year", limits=c(1969,2023), breaks=seq(1969,2023,5))+
 
   ## beautification of the axes
@@ -316,7 +321,7 @@ ggplot()+
         legend.key = element_rect(fill = NA),
         strip.text.x=element_text(size=18, color="black"), 
         strip.background=element_rect(fill="white", colour="black"))
-ggsave("RFBO_population_projection.jpg", width=9, height=6)
+ggsave("RFBO_population_projection_no_immigration.jpg", width=9, height=6)
 
 save.image("RFBO_popmod.RData")
 
