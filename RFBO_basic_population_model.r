@@ -10,6 +10,10 @@
 
 ## NEED TO DO: NARROW DOWN PRIORS FOR PRODUCTIVITY AND BREEDING PROPENSITY
 ## model struggles to converge because too many things can change at once
+## reverted to version of 29 Oct that seemed to produce sensible output
+
+## dreaded 'slicer stuck at value with infinite density' may occur because there is no variation: https://sourceforge.net/p/mcmc-jags/discussion/610037/thread/1b1ea77d/
+
 
 library(tidyverse)
 library(jagsUI)
@@ -66,7 +70,7 @@ hist(rbeta(1000,90,10))
 
 
 setwd("C:/STEFFEN/OneDrive - THE ROYAL SOCIETY FOR THE PROTECTION OF BIRDS/STEFFEN/RSPB/PeripheralProjects/RFBO")
-sink("RFBO_popmod_2phase_immigration.jags")
+sink("RFBO_popmod_2phase.jags")
 cat("
   
   
@@ -89,10 +93,10 @@ cat("
     # 1.1. Priors and constraints FOR FECUNDITY
     # -------------------------------------------------
     
-    mean.fec[1] ~ dbeta(45,55) I(0.001,0.999)        ## uninformative prior for breeding success
-    mean.fec[2] ~ dbeta(45,55) I(0.001,0.999)        ## uninformative prior for breeding success
-    #mean.fec[1] ~ dunif(0.3,0.8)         ## uninformative prior for breeding success
-    #mean.fec[2] ~ dunif(0.3,0.8)         ## uninformative prior for breeding success
+    #mean.fec[1] ~ dbeta(45,55) I(0.001,0.999)        ## uninformative prior for breeding success
+    #mean.fec[2] ~ dbeta(45,55) I(0.001,0.999)        ## uninformative prior for breeding success
+    mean.fec[1] ~ dunif(0.1,0.9)         ## uninformative prior for breeding success
+    mean.fec[2] ~ dunif(0.3,0.9)         ## uninformative prior for breeding success
 
     # -------------------------------------------------        
     # 1.2. Priors and constraints FOR SURVIVAL
@@ -103,15 +107,13 @@ cat("
     #mean.ad.surv[1] <- 0.92             # Prior for mean survival
     #mean.ad.surv[2] <- 0.92             # Prior for mean survival
     mean.juv.surv[1] ~ dbeta(85,17) I(0.001,0.999)    ## 
-    mean.juv.surv[2] ~ dbeta(85,17) I(0.001,0.999)   ##
-    #mean.juv.surv[1] <- 0.85    ## 
-    #mean.juv.surv[2] <- 0.85    ## 
+    #mean.juv.surv[2] ~ dbeta(85,17) I(0.001,0.999)   ##
+    mean.juv.surv[2] <- mean.juv.surv[1]  ## avoid different rates for juveniles
     #breed.prop[1] ~ dbeta(90,10) I(0.001,0.999)
     #breed.prop[2] ~ dbeta(90,10) I(0.001,0.999)
-    breed.prop[1] <- 1
-    breed.prop[2] <- 1
-    mean.imm[1]<-0
-    mean.imm[2]<-10
+    breed.prop[1] ~ dunif(0.5,1)
+    breed.prop[2] ~ dunif(0.5,1)
+
     
     # -------------------------------------------------        
     # 1.3. Priors FOR POPULATION COUNT ERROR
@@ -132,18 +134,16 @@ cat("
       JUV[1]<-round(Nad.breed[1]*0.5*(mean.fec[1])*breed.prop[1])
       N1[1]<-round(Nad.breed[1]*0.5*(mean.fec[1])*breed.prop[1]*mean.juv.surv[phase[1]])
       N2[1]<-round(Nad.breed[1]*0.5*(mean.fec[1])*breed.prop[1]*mean.juv.surv[phase[1]]*mean.ad.surv[1])
-      Nad.breed[1] <- 2277         # initial value of population size
+      Nad.breed[1] ~ dunif(2270,2280)         # initial value of population size
       Nad.nonbreed[1] <- Nad.breed[1] * (1-breed.prop[1])         # initial value of non-breeder size
       #prop.good[1] ~ dbern(mean.prop.good)
-      ann.imm[1]<-0
+      #ann.imm[1]<-0
       
       for (tt in 2:n.years){
       
         ## RANDOMLY DRAW GOOD OR BAD YEAR
         #prop.good[tt] ~ dbern(mean.prop.good)
         
-        ## RANDOMLY DRAW GOOD OR BAD YEAR
-        ann.imm[tt] ~ dpois(mean.imm[phase[tt]])
 
         ## THE PRE-BREEDERS ##
         JUV[tt] ~ dbin(mean.fec[phase[tt]],round(0.5 * Nad.breed[tt]*breed.prop[phase[tt]]))                                   ### number of locally produced FEMALE chicks
@@ -152,7 +152,7 @@ cat("
 
         ## THE BREEDERS ##
         Nad.surv[tt] ~ dbin(mean.ad.surv[phase[tt]], max(2,round(N2[tt-1]+Nad.breed[tt-1]+Nad.nonbreed[tt-1])))                            ### the annual number of breeding birds is the sum of old breeders and recent recruits
-        Nad.breed[tt] ~ dbin(breed.prop[phase[tt]], max(2,Nad.surv[tt]+ann.imm[tt]))                            ### the annual number of breeding birds is the proportion of adult survivors
+        Nad.breed[tt] ~ dbin(breed.prop[phase[tt]], max(2,Nad.surv[tt]))                            ### the annual number of breeding birds is the proportion of adult survivors
         Nad.nonbreed[tt] <- max(2,Nad.surv[tt]-Nad.breed[tt])                            ### the annual number of nonbreeding birds is the remainder of adult survivors
       } # tt
       
@@ -173,7 +173,7 @@ cat("
     
       for (t in 1:n.years){
         Nad.count[t] ~ dnorm(Nad.breed[t], tau.obs)# Distribution for random error in observed numbers (counts)
-      }# run this loop over t= nyears
+      }# run this loop over t nyears
     
     
     # -------------------------------------------------        
@@ -229,9 +229,11 @@ nb <- 25000
 nc <- 3
 
 # Call JAGS from R (model created below)
-RFBO_IPM <- jags(jags.data, inits, model.file="C:/STEFFEN/OneDrive - THE ROYAL SOCIETY FOR THE PROTECTION OF BIRDS/STEFFEN/RSPB/PeripheralProjects/RFBO/RFBO_popmod_2phase_immigration.jags",  ## changed from v4 to v6 on 10 Aug
+RFBO_IPM <- autojags(jags.data, inits, model.file="C:/STEFFEN/OneDrive - THE ROYAL SOCIETY FOR THE PROTECTION OF BIRDS/STEFFEN/RSPB/PeripheralProjects/RFBO/RFBO_popmod_2phase.jags",  ## changed from v4 to v6 on 10 Aug
                      parameters.to.save=parameters,
-                 n.chains = nc, n.thin = nt, n.burnin = nb,parallel=T,n.iter = ni)
+                 n.chains = nc, n.thin = nt, n.burnin = nb,parallel=T,n.cores=nc,
+                 Rhat.limit=1.2,iter.increment=1000) ### for autojags call
+                 #n.iter = ni)   ## for normal jags call
 
 
 ### save model workspace
