@@ -56,8 +56,9 @@ productivity<-c(55.3,61.8,43.6,34.3,47.6)
 hist(rbeta(1000,92,8))
 hist(rbeta(1000,85,17))
 hist(rbeta(1000,52,45))
-hist(rbeta(1000,50,85))
-hist(rbeta(1000,95,10))
+hist(rbeta(1000,40,85))
+hist(rbeta(1000,95,5))
+hist(rnorm(1000,50,5))
 
 
 ### Calculation of stable age distribution 
@@ -95,7 +96,7 @@ cat("
     # 1.1. Priors and constraints FOR FECUNDITY
     # -------------------------------------------------
     
-    mean.fec[1] ~ dbeta(50,85) T(0.01,0.99)        ## uninformative prior for breeding success
+    mean.fec[1] ~ dbeta(40,85) T(0.01,0.99)        ## uninformative prior for breeding success
     mean.fec[2] ~ dbeta(52,45) T(0.01,0.99)        ## uninformative prior for breeding success
     #mean.fec[1] ~ dunif(0.1,0.9)         ## uninformative prior for breeding success
     #mean.fec[2] ~ dunif(0.3,0.9)         ## uninformative prior for breeding success
@@ -105,21 +106,21 @@ cat("
     # -------------------------------------------------
     
     mean.ad.surv[1] ~ dbeta(92, 8) T(0.01,0.99)            # Prior for mean survival
-    mean.ad.surv[2] ~ dbeta(93, 8) T(0.01,0.99)            # Prior for mean survival
+    mean.ad.surv[2] ~ dbeta(92, 8) T(0.01,0.99)            # Prior for mean survival
     #mean.ad.surv[1] <- 0.92             # Prior for mean survival
     #mean.ad.surv[2] <- 0.92             # Prior for mean survival
     mean.juv.surv[1] ~ dbeta(85,17) T(0.01,0.99)    ## 
-    mean.juv.surv[2] ~ dbeta(87,17) T(0.01,0.99)   ##
+    mean.juv.surv[2] ~ dbeta(87,10) T(0.01,0.99)   ##
     #mean.juv.surv[2] <- 0.85  ## avoid different rates for juveniles
     #mean.juv.surv[1] <- 0.85  ## avoid different rates for juveniles
     breed.prop[1] ~ dbeta(90,10) T(0.01,0.99)
-    breed.prop[2] ~ dbeta(95,10) T(0.01,0.99)
+    breed.prop[2] ~ dbeta(95,5) T(0.01,0.99)
     #breed.prop[1] ~ dunif(0.5,1)
     #breed.prop[2] ~ dunif(0.5,1)
     #breed.prop[1] <- 0.9
     #breed.prop[2] <- 0.9
     mean.imm[1]<-0
-    mean.imm[2]<-50
+    mean.imm[2] ~ dnorm(75,0.05)
 
     
     # -------------------------------------------------        
@@ -304,7 +305,7 @@ ggplot()+
   geom_point(data=countdata, aes(x=Year, y=RFBO), size=3, colour="firebrick")+
   
   ## format axis ticks
-  scale_y_continuous(name="Red-footed Booby pairs", limits=c(0,100000),breaks=seq(0,100000,10000))+
+  scale_y_continuous(name="Red-footed Booby pairs", limits=c(0,95000),breaks=seq(0,90000,10000))+
   scale_x_continuous(name="Year", limits=c(1969,2023), breaks=seq(1969,2023,5))+
 
   ## beautification of the axes
