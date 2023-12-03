@@ -126,7 +126,7 @@ cat("
     # -------------------------------------------------        
     # 1.3. Priors FOR POPULATION COUNT ERROR
     # -------------------------------------------------
-    sigma.obs ~ dunif(0,10)  #Prior for SD of observation process (variation in detectability)
+    sigma.obs ~ dunif(0.1,10)  #Prior for SD of observation process (variation in detectability)
     tau.obs<-pow(sigma.obs,-2)
 
     
@@ -179,12 +179,12 @@ cat("
     # -------------------------------------------------
       ## Observation process
       ## THIS LEADS TO SLICER STUCK AT INFINITE DENSITY ERROR
-      # for (t in 1:n.years){
-      #   Nad.count[t] ~ dnorm(Nad.breed[t], tau.obs)# Distribution for random error in observed numbers (counts)
-      # }# run this loop over t nyears
+      for (t in 1:n.years){
+        Nad.count[t] ~ dnorm(Nad.breed[t], tau.obs)# Distribution for random error in observed numbers (counts)
+      }# run this loop over t nyears
       
       # just tie it to the last count
-    Nad.count[55] ~ dnorm(Nad.breed[55], tau.obs)# Distribution for random error in observed numbers (counts)
+    #Nad.count[55] ~ dnorm(Nad.breed[55], tau.obs)# Distribution for random error in observed numbers (counts)
     
     # -------------------------------------------------        
     # 4. DERIVED PARAMETERS
@@ -227,19 +227,19 @@ jags.data <- list(Nad.count=countdata$RFBO,
                   n.col=length(productivity))
 
 # Initial values 
-inits <- function(){list(Nad.breed=c(rep(NA,length(countdata$RFBO)-1),runif(1,21000,23000)),
+inits <- function(){list(#Nad.breed=c(rep(NA,length(countdata$RFBO)-1),runif(1,21000,23000)),
                          mean.juv.surv = rbeta(2, 85, 17),
                          mean.ad.surv = rbeta(2, 92, 8),
                          mean.fec=rbeta(2,45,55))}  ### adjusted for REV1 as frequency of good years
 
 
 # Parameters monitored
-parameters <- c("mean.imm","breed.prop","mean.fec","mean.juv.surv","mean.ad.surv","Nad.breed","Nad.2023")
+parameters <- c("mean.imm","breed.prop","mean.fec","mean.juv.surv","mean.ad.surv","Nad.breed")
 
 # MCMC settings
-ni <- 50000
+ni <- 500000
 nt <- 10
-nb <- 25000
+nb <- 250000
 nc <- 3
 
 # Call JAGS from R (model created below)
@@ -307,7 +307,7 @@ ggplot()+
   geom_point(data=countdata, aes(x=Year, y=RFBO), size=3, colour="firebrick")+
   
   ## format axis ticks
-  scale_y_continuous(name="Red-footed Booby pairs", limits=c(0,95000),breaks=seq(0,90000,10000))+
+  scale_y_continuous(name="Red-footed Booby pairs", limits=c(0,30000),breaks=seq(0,30000,5000))+
   scale_x_continuous(name="Year", limits=c(1969,2023), breaks=seq(1969,2023,5))+
 
   ## beautification of the axes

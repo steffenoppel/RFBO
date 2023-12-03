@@ -50,7 +50,7 @@
     # -------------------------------------------------        
     # 1.3. Priors FOR POPULATION COUNT ERROR
     # -------------------------------------------------
-    sigma.obs ~ dunif(0,10)  #Prior for SD of observation process (variation in detectability)
+    sigma.obs ~ dunif(0.1,10)  #Prior for SD of observation process (variation in detectability)
     tau.obs<-pow(sigma.obs,-2)
 
     
@@ -103,12 +103,12 @@
     # -------------------------------------------------
       ## Observation process
       ## THIS LEADS TO SLICER STUCK AT INFINITE DENSITY ERROR
-      # for (t in 1:n.years){
-      #   Nad.count[t] ~ dnorm(Nad.breed[t], tau.obs)# Distribution for random error in observed numbers (counts)
-      # }# run this loop over t nyears
+      for (t in 1:n.years){
+        Nad.count[t] ~ dnorm(Nad.breed[t], tau.obs)# Distribution for random error in observed numbers (counts)
+      }# run this loop over t nyears
       
       # just tie it to the last count
-    Nad.count[55] ~ dnorm(Nad.breed[55], tau.obs)# Distribution for random error in observed numbers (counts)
+    #Nad.count[55] ~ dnorm(Nad.breed[55], tau.obs)# Distribution for random error in observed numbers (counts)
     
     # -------------------------------------------------        
     # 4. DERIVED PARAMETERS
