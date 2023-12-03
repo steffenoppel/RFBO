@@ -73,7 +73,7 @@ hist(rnorm(1000,50,5))
 
 
 setwd("C:/STEFFEN/OneDrive - THE ROYAL SOCIETY FOR THE PROTECTION OF BIRDS/STEFFEN/RSPB/PeripheralProjects/RFBO")
-sink("RFBO_popmod_2phase_free_imm.jags")
+sink("RFBO_popmod_2phase_imm_obs.jags")
 cat("
   
   
@@ -126,8 +126,8 @@ cat("
     # -------------------------------------------------        
     # 1.3. Priors FOR POPULATION COUNT ERROR
     # -------------------------------------------------
-    # sigma.obs ~ dunif(0,1)  #Prior for SD of observation process (variation in detectability)
-    # tau.obs<-pow(sigma.obs,-2)
+    sigma.obs ~ dunif(0,10)  #Prior for SD of observation process (variation in detectability)
+    tau.obs<-pow(sigma.obs,-2)
 
     
     #-------------------------------------------------  
@@ -178,11 +178,13 @@ cat("
     # 2.3. Likelihood for population.counts
     # -------------------------------------------------
       ## Observation process
-    
+      ## THIS LEADS TO SLICER STUCK AT INFINITE DENSITY ERROR
       # for (t in 1:n.years){
       #   Nad.count[t] ~ dnorm(Nad.breed[t], tau.obs)# Distribution for random error in observed numbers (counts)
       # }# run this loop over t nyears
-    
+      
+      # just tie it to the last count
+    Nad.count[55] ~ dnorm(Nad.breed[55], tau.obs)# Distribution for random error in observed numbers (counts)
     
     # -------------------------------------------------        
     # 4. DERIVED PARAMETERS
@@ -225,14 +227,14 @@ jags.data <- list(Nad.count=countdata$RFBO,
                   n.col=length(productivity))
 
 # Initial values 
-inits <- function(){list(#Nad.breed=c(runif(1,2275,2280),rep(NA,length(countdata$RFBO)-1)),
+inits <- function(){list(Nad.breed=c(rep(NA,length(countdata$RFBO)-1),runif(1,21000,23000)),
                          mean.juv.surv = rbeta(2, 85, 17),
                          mean.ad.surv = rbeta(2, 92, 8),
                          mean.fec=rbeta(2,45,55))}  ### adjusted for REV1 as frequency of good years
 
 
 # Parameters monitored
-parameters <- c("mean.imm","breed.prop","mean.fec","mean.juv.surv","mean.ad.surv","Nad.breed")
+parameters <- c("mean.imm","breed.prop","mean.fec","mean.juv.surv","mean.ad.surv","Nad.breed","Nad.2023")
 
 # MCMC settings
 ni <- 50000
@@ -241,7 +243,7 @@ nb <- 25000
 nc <- 3
 
 # Call JAGS from R (model created below)
-RFBO_IPM <- jags(jags.data, inits, model.file="C:/STEFFEN/OneDrive - THE ROYAL SOCIETY FOR THE PROTECTION OF BIRDS/STEFFEN/RSPB/PeripheralProjects/RFBO/RFBO_popmod_2phase_free_imm.jags",  ## changed from v4 to v6 on 10 Aug
+RFBO_IPM <- jags(jags.data, inits, model.file="C:/STEFFEN/OneDrive - THE ROYAL SOCIETY FOR THE PROTECTION OF BIRDS/STEFFEN/RSPB/PeripheralProjects/RFBO/RFBO_popmod_2phase_imm_obs.jags",  ## changed from v4 to v6 on 10 Aug
                      parameters.to.save=parameters,
                  n.chains = nc, n.thin = nt, n.burnin = nb,parallel=T,n.cores=nc,
                  #Rhat.limit=1.5,iter.increment=1000,max.iter=1000000) ### for autojags call
