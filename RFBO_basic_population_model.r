@@ -57,7 +57,7 @@ hist(rbeta(1000,92,8))
 hist(rbeta(1000,85,17))
 hist(rbeta(1000,52,45))
 hist(rbeta(1000,40,85))
-hist(rbeta(1000,95,5))
+hist(rbeta(1000,92,8))
 hist(rnorm(1000,50,5))
 
 
@@ -107,20 +107,12 @@ cat("
     
     mean.ad.surv[1] ~ dbeta(92, 8) T(0.01,0.99)            # Prior for mean survival
     mean.ad.surv[2] ~ dbeta(92, 8) T(0.01,0.99)            # Prior for mean survival
-    #mean.ad.surv[1] <- 0.92             # Prior for mean survival
-    #mean.ad.surv[2] <- 0.92             # Prior for mean survival
     mean.juv.surv[1] ~ dbeta(85,17) T(0.01,0.99)    ## 
     mean.juv.surv[2] ~ dbeta(87,10) T(0.01,0.99)   ##
-    #mean.juv.surv[2] <- 0.85  ## avoid different rates for juveniles
-    #mean.juv.surv[1] <- 0.85  ## avoid different rates for juveniles
     breed.prop[1] ~ dbeta(90,10) T(0.01,0.99)
     breed.prop[2] ~ dbeta(95,5) T(0.01,0.99)
-    #breed.prop[1] ~ dunif(0.5,1)
-    #breed.prop[2] ~ dunif(0.5,1)
-    #breed.prop[1] <- 0.9
-    #breed.prop[2] <- 0.9
     mean.imm[1]<-0
-    mean.imm[2] ~ dnorm(75,0.05)
+    mean.imm[2] ~ dunif(0,100)
 
     
     # -------------------------------------------------        
@@ -307,7 +299,7 @@ ggplot()+
   geom_point(data=countdata, aes(x=Year, y=RFBO), size=3, colour="firebrick")+
   
   ## format axis ticks
-  scale_y_continuous(name="Red-footed Booby pairs", limits=c(0,30000),breaks=seq(0,30000,5000))+
+  scale_y_continuous(name="Red-footed Booby pairs", limits=c(0,25000),breaks=seq(0,25000,5000))+
   scale_x_continuous(name="Year", limits=c(1969,2023), breaks=seq(1969,2023,5))+
 
   ## beautification of the axes
@@ -326,13 +318,9 @@ ggsave("RFBO_population_projection_with_immigration.jpg", width=9, height=6)
 
 
 
-
-
-save.image("RFBO_popmod.RData")
-
 ### save model workspace
-#save.image("RFBO_IPM_converged.RData")
-load("RFBO_IPM_REV1.RData")
+save.image("RFBO_popmod.RData")
+load("RFBO_popmod.RData")
 
 
 
