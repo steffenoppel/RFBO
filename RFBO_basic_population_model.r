@@ -53,10 +53,41 @@ productivity<-c(55.3,61.8,43.6,34.3,47.6)
 #Age at maturity: 	3 	from	various web sources
 #breeding propensity: 0.56+0.0361 adapted from Cubaynes et al. 2010
 
+## adult survival
 hist(rbeta(1000,92,8))
+mean(rbeta(1000,92,8))
+sd(rbeta(1000,92,8))
+
+## juvenile survival
+mean(rbeta(1000,85,17))
+sd(rbeta(1000,85,17))
 hist(rbeta(1000,85,17))
+
+mean(rbeta(1000,87,10))
+sd(rbeta(1000,87,10))
+hist(rbeta(1000,87,10))
+
+## productivity
+mean(rbeta(1000,52,45))
+sd(rbeta(1000,52,45))
 hist(rbeta(1000,52,45))
+
 hist(rbeta(1000,40,85))
+mean(rbeta(1000,40,85))
+sd(rbeta(1000,40,85))
+
+## breeding propensity
+
+hist(rbeta(1000,90,10))
+mean(rbeta(1000,90,10))
+sd(rbeta(1000,90,10))
+
+hist(rbeta(1000,95,5))
+mean(rbeta(1000,95,5))
+sd(rbeta(1000,95,5))
+
+
+
 hist(rbeta(1000,92,8))
 hist(rnorm(1000,50,5))
 
