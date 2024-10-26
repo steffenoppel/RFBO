@@ -128,7 +128,7 @@ Ricker <- function(prev_abund,K,lambda){       # this is a function for computin
 ####  Stochastic population viability analysis function
 PVAdemo <- function(nreps,nyears){
   PopArray2 <- array(0,dim=c((nyears),nreps))
-  lambdas <- rep(1,nreps)
+  lambdas <- array(1,dim=c((nyears-1),nreps))
   
   ## start looping through replicates
   
@@ -136,7 +136,7 @@ PVAdemo <- function(nreps,nyears){
     
     # set initial abundance
     PopArray2[1,rep] <- as.integer(rnorm(1,2277,50))      ### initial abundance of birds in year 1
-    K <- as.integer(runif(1,22607,28000))      ### carrying capacity
+    K <- as.integer(runif(1,30000,40000))      ### carrying capacity
     
     ### loop through years
     for(y in 2:(nyears)){
@@ -162,25 +162,31 @@ PVAdemo <- function(nreps,nyears){
       agedis<-stable.stage(bird.matrix)
       bird.vr<-list(F=F, bp=bp,Sa=Sa,Sj=Sj)
       A<-matrix(sapply(bird.matrix, eval,bird.vr , NULL), nrow=sqrt(length(bird.matrix)), byrow=TRUE)
-      pop.size<-c((PopArray2[1,rep]/agedis[3])*agedis[1],
-                  (PopArray2[1,rep]/agedis[3])*agedis[2],
-                  PopArray2[1,rep])  ## pop size based on stable age distribution
-      projections<-pop.projection(A,n=pop.size,iterations=nyears)
+      pop.size<-c((PopArray2[y-1,rep]/agedis[3])*agedis[1],
+                  (PopArray2[y-1,rep]/agedis[3])*agedis[2],
+                  PopArray2[y-1,rep])  ## pop size based on stable age distribution
+      projections<-pop.projection(A,n=pop.size,iterations=15)
       
-      ### return list of population growth rates
-      lambdas[rep] <- projections$lambda       # Maximum rate of growth (max lambda)
+      # ### return list of population growth rates
+      # lambdas[rep] <- projections$lambda       # Maximum rate of growth (max lambda)
+      # 
+      # ### return list of population sizes
+      # if(max(projections$stage.vectors[3,])<K*2){
+      #   PopArray2[,rep] <- projections$stage.vectors[3,]
+      # }
+
       
       ### return list of population sizes
-      if(max(projections$stage.vectors[3,])<K*2){
-        PopArray2[,rep] <- projections$stage.vectors[3,]
+      if(PopArray2[y-1,rep]>K/2){
+        PopArray2[y,rep] <- PopArray2[y-1,rep]*exp(log(projections$lambda)*(1-(PopArray2[y-1,rep]/K)))
+        ### return list of population growth rates
+        lambdas[rep] <- exp(log(projections$lambda)*(1-(PopArray2[y-1,rep]/K)))       # Growth rate given that pop is approaching carrying capacity
+      }else{
+        PopArray2[y,rep] <- PopArray2[y-1,rep]*projections$lambda
+        ### return list of population growth rates
+        lambdas[rep] <- projections$lambda       # Maximum rate of growth (max lambda)
       }
-
       
-      ### stochasticity and density dependence
-      nextyear <- trunc(Ricker(prev_abund=PopArray2[y-1,rep],K=K, lambda=projections$lambda))    ### calculates abundance based on Ricker model, rounded to integer
-
-      ### return list of population sizes
-      PopArray2[y,rep] <- nextyear
 
     }
   }
@@ -190,10 +196,6 @@ PVAdemo <- function(nreps,nyears){
 
 
 OUTPUT<-PVAdemo(nreps=100,nyears=length(countdata$Year))
-
-
-
-
 
 
 #########################################################################
