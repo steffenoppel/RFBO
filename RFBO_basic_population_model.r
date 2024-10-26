@@ -127,8 +127,8 @@ Ricker <- function(prev_abund,K,lambda){       # this is a function for computin
 
 ####  Stochastic population viability analysis function
 PVAdemo <- function(nreps,nyears){
-  PopArray2 <- array(0,dim=c((nyears+1),nreps))
-  lambdas <- array(1,dim=c((nyears),nreps))
+  PopArray2 <- array(0,dim=c((nyears),nreps))
+  lambdas <- rep(1,nreps)
   
   ## start looping through replicates
   
@@ -140,7 +140,7 @@ PVAdemo <- function(nreps,nyears){
     
     ### loop through years
     for(y in 2:(nyears)){
-      
+
       ### CREATE LESLIE MATRIX WITH RANDOM DRAW OF VITAL RATES
       ## adult survival
       Sa<-rbeta(1,92,8)
@@ -152,7 +152,7 @@ PVAdemo <- function(nreps,nyears){
       F<-runif(1,0.34,0.62) ## range of breeding success observed in different colonies in 2023
       
       ## breeding propensity
-      bp<-rbeta(1,90,10)
+      bp<-runif(1,0.5,0.9)
       
       ## compile pop matrix
       bird.matrix<-matrix(c(
@@ -162,21 +162,26 @@ PVAdemo <- function(nreps,nyears){
       agedis<-stable.stage(bird.matrix)
       bird.vr<-list(F=F, bp=bp,Sa=Sa,Sj=Sj)
       A<-matrix(sapply(bird.matrix, eval,bird.vr , NULL), nrow=sqrt(length(bird.matrix)), byrow=TRUE)
-      pop.size<-c((PopArray2[y-1,rep]/agedis[3])*agedis[1],
-                  (PopArray2[y-1,rep]/agedis[3])*agedis[2],
-                  PopArray2[y-1,rep])  ## pop size based on stable age distribution
-      projections<-pop.projection(A,n=pop.size,iterations=50)
+      pop.size<-c((PopArray2[1,rep]/agedis[3])*agedis[1],
+                  (PopArray2[1,rep]/agedis[3])*agedis[2],
+                  PopArray2[1,rep])  ## pop size based on stable age distribution
+      projections<-pop.projection(A,n=pop.size,iterations=nyears)
       
+      ### return list of population growth rates
+      lambdas[rep] <- projections$lambda       # Maximum rate of growth (max lambda)
       
-      ### STOCHASTIC RICKER POPULATION MODEL
-      lambdas[y-1,rep] <- projections$lambda       # Maximum rate of growth (max lambda)
+      ### return list of population sizes
+      if(max(projections$stage.vectors[3,])<K*2){
+        PopArray2[,rep] <- projections$stage.vectors[3,]
+      }
+
       
       ### stochasticity and density dependence
       nextyear <- trunc(Ricker(prev_abund=PopArray2[y-1,rep],K=K, lambda=projections$lambda))    ### calculates abundance based on Ricker model, rounded to integer
-      
+
       ### return list of population sizes
       PopArray2[y,rep] <- nextyear
-      
+
     }
   }
   
@@ -197,7 +202,7 @@ OUTPUT<-PVAdemo(nreps=100,nyears=length(countdata$Year))
 
 mean(OUTPUT$lam)
 
-apply(OUTPUT$pop,1,mean)
+apply(OUTPUT$pop,1,median)
 
 
 
@@ -206,18 +211,19 @@ apply(OUTPUT$pop,1,mean)
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 ## retrieve the past population estimates (2006-2019)
-RFBOpop<-out[(grep("Nad.breed\\[",out$parameter)),c(12,1,3,7)] %>%
-  mutate(Year=seq(1969,2023)) %>%
-  rename(parm=parameter,lcl=`2.5%`,ucl=`97.5%`) %>%
-  dplyr::select(parm,Year,mean,lcl,ucl)
+RFBOpop<-countdata %>%
+  select(Year) %>%
+  bind_cols(OUTPUT$pop) %>%
+  gather(key="simulation", value="N",-Year) %>%
+  mutate(simulation=as.numeric(as.factor(simulation)))
 
 
 ### CREATE PLOT FOR BASELINE TRAJECTORY
 
 ggplot()+
-  geom_line(data=RFBOpop, aes(x=Year, y=mean), linewidth=1)+
-  geom_ribbon(data=RFBOpop,aes(x=Year, ymin=lcl,ymax=ucl),alpha=0.2)+
-  geom_point(data=countdata, aes(x=Year, y=RFBO), size=3, colour="firebrick")+
+  geom_line(data=RFBOpop, aes(x=Year, y=N, group=simulation), linewidth=1)+
+  # geom_ribbon(data=RFBOpop,aes(x=Year, ymin=lcl,ymax=ucl),alpha=0.2)+
+  # geom_point(data=countdata, aes(x=Year, y=RFBO), size=3, colour="firebrick")+
   
   ## format axis ticks
   scale_y_continuous(name="Red-footed Booby pairs", limits=c(0,25000),breaks=seq(0,25000,5000))+
