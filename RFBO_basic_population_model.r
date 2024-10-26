@@ -16,8 +16,11 @@
 
 ### REVISED APPROACH 9 NOV 2023: FIXED SURVIVAL and prop.breeding to reduce ambiguity
 
+### REVISION ON 26 October 2024: fully revised population model to remove Bayesian estimation
+### reviewer (Matthieu LeCorre) suggested to present much simpler model
+
 library(tidyverse)
-library(jagsUI)
+#library(jagsUI)
 library(data.table)
 library(lubridate)
 library(popbio)
@@ -53,54 +56,270 @@ productivity<-c(55.3,61.8,43.6,34.3,47.6)
 #Age at maturity: 	3 	from	various web sources
 #breeding propensity: 0.56+0.0361 adapted from Cubaynes et al. 2010
 
-## adult survival
-hist(rbeta(1000,92,8))
-mean(rbeta(1000,92,8))
-sd(rbeta(1000,92,8))
-
-## juvenile survival
-mean(rbeta(1000,85,17))
-sd(rbeta(1000,85,17))
-hist(rbeta(1000,85,17))
-
-mean(rbeta(1000,87,10))
-sd(rbeta(1000,87,10))
-hist(rbeta(1000,87,10))
-
-## productivity
-mean(rbeta(1000,52,45))
-sd(rbeta(1000,52,45))
-hist(rbeta(1000,52,45))
-
-hist(rbeta(1000,40,85))
-mean(rbeta(1000,40,85))
-sd(rbeta(1000,40,85))
-
-## breeding propensity
-
-hist(rbeta(1000,90,10))
-mean(rbeta(1000,90,10))
-sd(rbeta(1000,90,10))
-
-hist(rbeta(1000,95,5))
-mean(rbeta(1000,95,5))
-sd(rbeta(1000,95,5))
-
-
-
-hist(rbeta(1000,92,8))
-hist(rnorm(1000,50,5))
 
 
 ### Calculation of stable age distribution 
 ### CREATING THE POPULATION MATRIX ###
-# 
-# seabird.matrix<-matrix(c(
-#   0,0,0.519*0.5*0.56,
-#   0.85,0,0,
-#   0,0.92,0.92),ncol=3, byrow=T)
-# stable.stage(seabird.matrix)
+seabird.matrix<-matrix(c(
+  0,0,0.519*0.5*0.56,
+  0.85,0,0,
+  0,0.92,0.92),ncol=3, byrow=T)
+stable.stage(seabird.matrix)
 
+
+
+
+
+
+
+##########~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~######
+#################### SIMULATION OF POPULATION TRAJECTORY ACROSS RANGE OF PARAMETERS ########################################
+##########~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~######
+
+### SPECIFY RANGE OF PARAMETERS FOR DEMOGRAPHIC MODEL ###
+
+pop.sizes<-seq(2200,3000,100)			### population size in FEMALE individuals
+Sa<-seq(0.90,0.92,0.05)				### survival of adult females
+Sj<-seq(0.85,0.87,0.05)				### survival of first year females
+F<-seq(0.5,0.6,0.2)			   ### fecundity = number of fledglings raised per FIRST brood
+bp<-0.9			   ### fecundity = number of fledglings raised per SECOND brood, should be slightly lower than first brood
+
+
+
+
+
+
+
+
+##########~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~######
+#################### SETTING UP THE POPULATION MATRIX ########################################
+##########~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~######
+
+## SIMPLE RUN TO TEST FOR LATER INCORPORATION IN LOOP
+## 56% of adult population is male
+
+bird.matrix<-matrix(c(
+  0,0,F*0.5*bp,
+  Sj,0,0,
+  0,Sa,Sa),ncol=3, byrow=T)
+stable.stage(bird.matrix)
+
+bird.vr<-list(F=0.56,bp=0.9,Sa=0.92, Sj=0.85)
+A<-matrix(sapply(bird.matrix, eval,bird.vr , NULL), nrow=sqrt(length(bird.matrix)), byrow=TRUE)
+projections<-pop.projection(A,n=c(50,100,500),iterations=50)
+projections$lambda
+
+
+
+
+##########~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~######
+########## STOCHASTIC POPULATION MODEL TAKING UNCERTAINTY INTO ACCOUNT ########################################
+##########~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~######
+
+
+####  Density-dependent Ricker model to simulate population growth
+
+Ricker <- function(prev_abund,K,lambda){       # this is a function for computing next-year abundance -- includes env stochasticity
+  prev_abund * exp(log(lambda))*(1-(prev_abund/K))
+}
+
+
+
+####  Stochastic population viability analysis function
+PVAdemo <- function(nreps,nyears){
+  PopArray2 <- array(0,dim=c((nyears+1),nreps))
+  lambdas <- array(1,dim=c((nyears),nreps))
+  
+  ## start looping through replicates
+  
+  for(rep in 1:nreps){
+    
+    # set initial abundance
+    PopArray2[1,rep] <- as.integer(rnorm(1,2277,50))      ### initial abundance of birds in year 1
+    K <- as.integer(runif(1,22607,28000))      ### carrying capacity
+    
+    ### loop through years
+    for(y in 2:(nyears)){
+      
+      ### CREATE LESLIE MATRIX WITH RANDOM DRAW OF VITAL RATES
+      ## adult survival
+      Sa<-rbeta(1,92,8)
+      
+      ## juvenile survival
+      Sj<-rbeta(1,85,17)
+      
+      ## productivity
+      F<-runif(1,0.34,0.62) ## range of breeding success observed in different colonies in 2023
+      
+      ## breeding propensity
+      bp<-rbeta(1,90,10)
+      
+      ## compile pop matrix
+      bird.matrix<-matrix(c(
+        0,0,F*0.5*bp,
+        Sj,0,0,
+        0,Sa,Sa),ncol=3, byrow=T)
+      agedis<-stable.stage(bird.matrix)
+      bird.vr<-list(F=F, bp=bp,Sa=Sa,Sj=Sj)
+      A<-matrix(sapply(bird.matrix, eval,bird.vr , NULL), nrow=sqrt(length(bird.matrix)), byrow=TRUE)
+      pop.size<-c((PopArray2[y-1,rep]/agedis[3])*agedis[1],
+                  (PopArray2[y-1,rep]/agedis[3])*agedis[2],
+                  PopArray2[y-1,rep])  ## pop size based on stable age distribution
+      projections<-pop.projection(A,n=pop.size,iterations=50)
+      
+      
+      ### STOCHASTIC RICKER POPULATION MODEL
+      lambdas[y-1,rep] <- projections$lambda       # Maximum rate of growth (max lambda)
+      
+      ### stochasticity and density dependence
+      nextyear <- trunc(Ricker(prev_abund=PopArray2[y-1,rep],K=K, lambda=projections$lambda))    ### calculates abundance based on Ricker model, rounded to integer
+      
+      ### return list of population sizes
+      PopArray2[y,rep] <- nextyear
+      
+    }
+  }
+  
+  return(list(pop=PopArray2, lam=lambdas))
+}
+
+
+OUTPUT<-PVAdemo(nreps=100,nyears=length(countdata$Year))
+
+
+
+
+
+
+#########################################################################
+# 5. SUMMARISE OUTPUT AND PLOT POPULATION TRAJECTORY
+#########################################################################
+
+mean(OUTPUT$lam)
+
+apply(OUTPUT$pop,1,mean)
+
+
+
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# GRAPH 1: POPULATION TRAJECTORY UNDER BOTH SCENARIOS
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+## retrieve the past population estimates (2006-2019)
+RFBOpop<-out[(grep("Nad.breed\\[",out$parameter)),c(12,1,3,7)] %>%
+  mutate(Year=seq(1969,2023)) %>%
+  rename(parm=parameter,lcl=`2.5%`,ucl=`97.5%`) %>%
+  dplyr::select(parm,Year,mean,lcl,ucl)
+
+
+### CREATE PLOT FOR BASELINE TRAJECTORY
+
+ggplot()+
+  geom_line(data=RFBOpop, aes(x=Year, y=mean), linewidth=1)+
+  geom_ribbon(data=RFBOpop,aes(x=Year, ymin=lcl,ymax=ucl),alpha=0.2)+
+  geom_point(data=countdata, aes(x=Year, y=RFBO), size=3, colour="firebrick")+
+  
+  ## format axis ticks
+  scale_y_continuous(name="Red-footed Booby pairs", limits=c(0,25000),breaks=seq(0,25000,5000))+
+  scale_x_continuous(name="Year", limits=c(1969,2023), breaks=seq(1969,2023,5))+
+  
+  ## beautification of the axes
+  theme(panel.background=element_rect(fill="white", colour="black"), panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
+        axis.text.y=element_text(size=18, color="black"),
+        axis.text.x=element_text(size=14, color="black"), 
+        axis.title=element_text(size=18),
+        legend.text=element_text(size=12, color="black"),
+        legend.title=element_text(size=14, color="black"),
+        legend.position = c(0.73,0.89),
+        legend.key = element_rect(fill = NA),
+        strip.text.x=element_text(size=18, color="black"), 
+        strip.background=element_rect(fill="white", colour="black"))
+ggsave("RFBO_population_projection_with_immigration.jpg", width=9, height=6)
+
+
+
+
+
+
+
+
+
+
+
+
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# CREATE OUTPUT TABLE FOR MANUSCRIPT
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+head(out)
+
+TABLE1<-out %>% filter(parameter %in% c('mean.imm[1]','mean.imm[2]','mean.fec[1]','mean.fec[2]','breed.prop[1]','breed.prop[2]','mean.ad.surv[1]','mean.ad.surv[2]','mean.juv.surv[1]','mean.juv.surv[2]')) %>%
+  select(parameter,c(5,3,7))
+
+names(TABLE1)<-c("Parameter","Median","lowerCL","upperCL")
+TABLE1$Parameter<-c("immigrants","immigrants","proportion of breeders","proportion of breeders","productivity","productivity","first year survival probability","first year survival probability","annual adult survival probability","annual adult survival probability")
+TABLE1$Period<-rep(c("1969-2000","2000-2022"), 5)
+
+#fwrite(TABLE1,"RFBO_demographic_parameter_estimates_REV1.csv")
+
+## FORMAT TABLE FOR MANUSCRIPT
+
+TABLE1<-TABLE1 %>% mutate(MED=paste(round(Median,3)," (",round(lowerCL,3)," - ", round(upperCL,3),")", sep="")) %>%
+  select(Parameter,MED, Period) %>%
+  spread(key=Period, value=MED)
+TABLE1
+#fwrite(TABLE1,"TABLE1.csv")
+
+
+
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# GRAPH 1: POPULATION TRAJECTORY UNDER BOTH SCENARIOS
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+## retrieve the past population estimates (2006-2019)
+RFBOpop<-out[(grep("Nad.breed\\[",out$parameter)),c(12,1,3,7)] %>%
+  mutate(Year=seq(1969,2023)) %>%
+  rename(parm=parameter,lcl=`2.5%`,ucl=`97.5%`) %>%
+  dplyr::select(parm,Year,mean,lcl,ucl)
+
+
+### CREATE PLOT FOR BASELINE TRAJECTORY
+
+ggplot()+
+  geom_line(data=RFBOpop, aes(x=Year, y=mean), linewidth=1)+
+  geom_ribbon(data=RFBOpop,aes(x=Year, ymin=lcl,ymax=ucl),alpha=0.2)+
+  geom_point(data=countdata, aes(x=Year, y=RFBO), size=3, colour="firebrick")+
+  
+  ## format axis ticks
+  scale_y_continuous(name="Red-footed Booby pairs", limits=c(0,25000),breaks=seq(0,25000,5000))+
+  scale_x_continuous(name="Year", limits=c(1969,2023), breaks=seq(1969,2023,5))+
+
+  ## beautification of the axes
+  theme(panel.background=element_rect(fill="white", colour="black"), panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
+        axis.text.y=element_text(size=18, color="black"),
+        axis.text.x=element_text(size=14, color="black"), 
+        axis.title=element_text(size=18),
+        legend.text=element_text(size=12, color="black"),
+        legend.title=element_text(size=14, color="black"),
+        legend.position = c(0.73,0.89),
+        legend.key = element_rect(fill = NA),
+        strip.text.x=element_text(size=18, color="black"), 
+        strip.background=element_rect(fill="white", colour="black"))
+ggsave("RFBO_population_projection_with_immigration.jpg", width=9, height=6)
+
+
+
+
+### save model workspace
+save.image("RFBO_popmod.RData")
+load("RFBO_popmod.RData")
+
+
+
+
+
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# ABANDONED BAYESIAN APPROACH
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 
 setwd("C:/STEFFEN/OneDrive - THE ROYAL SOCIETY FOR THE PROTECTION OF BIRDS/STEFFEN/RSPB/PeripheralProjects/RFBO")
@@ -251,9 +470,9 @@ jags.data <- list(Nad.count=countdata$RFBO,
 
 # Initial values 
 inits <- function(){list(#Nad.breed=c(rep(NA,length(countdata$RFBO)-1),runif(1,21000,23000)),
-                         mean.juv.surv = rbeta(2, 85, 17),
-                         mean.ad.surv = rbeta(2, 92, 8),
-                         mean.fec=rbeta(2,45,55))}  ### adjusted for REV1 as frequency of good years
+  mean.juv.surv = rbeta(2, 85, 17),
+  mean.ad.surv = rbeta(2, 92, 8),
+  mean.fec=rbeta(2,45,55))}  ### adjusted for REV1 as frequency of good years
 
 
 # Parameters monitored
@@ -267,91 +486,11 @@ nc <- 3
 
 # Call JAGS from R (model created below)
 RFBO_IPM <- jags(jags.data, inits, model.file="C:/STEFFEN/OneDrive - THE ROYAL SOCIETY FOR THE PROTECTION OF BIRDS/STEFFEN/RSPB/PeripheralProjects/RFBO/RFBO_popmod_2phase_imm_obs.jags",  ## changed from v4 to v6 on 10 Aug
-                     parameters.to.save=parameters,
+                 parameters.to.save=parameters,
                  n.chains = nc, n.thin = nt, n.burnin = nb,parallel=T,n.cores=nc,
                  #Rhat.limit=1.5,iter.increment=1000,max.iter=1000000) ### for autojags call
                  n.iter = ni)   ## for normal jags call
 
-
-
-
-
-
-
-#########################################################################
-# 5. SUMMARISE OUTPUT AND PLOT POPULATION TRAJECTORY
-#########################################################################
-## compile output
-out<-as.data.frame(RFBO_IPM$summary)
-out$parameter<-row.names(RFBO_IPM$summary)
-
-
-
-#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-# CREATE OUTPUT TABLE FOR MANUSCRIPT
-#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-head(out)
-
-TABLE1<-out %>% filter(parameter %in% c('mean.imm[1]','mean.imm[2]','mean.fec[1]','mean.fec[2]','breed.prop[1]','breed.prop[2]','mean.ad.surv[1]','mean.ad.surv[2]','mean.juv.surv[1]','mean.juv.surv[2]')) %>%
-  select(parameter,c(5,3,7))
-
-names(TABLE1)<-c("Parameter","Median","lowerCL","upperCL")
-TABLE1$Parameter<-c("immigrants","immigrants","proportion of breeders","proportion of breeders","productivity","productivity","first year survival probability","first year survival probability","annual adult survival probability","annual adult survival probability")
-TABLE1$Period<-rep(c("1969-2000","2000-2022"), 5)
-
-#fwrite(TABLE1,"RFBO_demographic_parameter_estimates_REV1.csv")
-
-## FORMAT TABLE FOR MANUSCRIPT
-
-TABLE1<-TABLE1 %>% mutate(MED=paste(round(Median,3)," (",round(lowerCL,3)," - ", round(upperCL,3),")", sep="")) %>%
-  select(Parameter,MED, Period) %>%
-  spread(key=Period, value=MED)
-TABLE1
-#fwrite(TABLE1,"TABLE1.csv")
-
-
-
-#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-# GRAPH 1: POPULATION TRAJECTORY UNDER BOTH SCENARIOS
-#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-## retrieve the past population estimates (2006-2019)
-RFBOpop<-out[(grep("Nad.breed\\[",out$parameter)),c(12,1,3,7)] %>%
-  mutate(Year=seq(1969,2023)) %>%
-  rename(parm=parameter,lcl=`2.5%`,ucl=`97.5%`) %>%
-  dplyr::select(parm,Year,mean,lcl,ucl)
-
-
-### CREATE PLOT FOR BASELINE TRAJECTORY
-
-ggplot()+
-  geom_line(data=RFBOpop, aes(x=Year, y=mean), linewidth=1)+
-  geom_ribbon(data=RFBOpop,aes(x=Year, ymin=lcl,ymax=ucl),alpha=0.2)+
-  geom_point(data=countdata, aes(x=Year, y=RFBO), size=3, colour="firebrick")+
-  
-  ## format axis ticks
-  scale_y_continuous(name="Red-footed Booby pairs", limits=c(0,25000),breaks=seq(0,25000,5000))+
-  scale_x_continuous(name="Year", limits=c(1969,2023), breaks=seq(1969,2023,5))+
-
-  ## beautification of the axes
-  theme(panel.background=element_rect(fill="white", colour="black"), panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
-        axis.text.y=element_text(size=18, color="black"),
-        axis.text.x=element_text(size=14, color="black"), 
-        axis.title=element_text(size=18),
-        legend.text=element_text(size=12, color="black"),
-        legend.title=element_text(size=14, color="black"),
-        legend.position = c(0.73,0.89),
-        legend.key = element_rect(fill = NA),
-        strip.text.x=element_text(size=18, color="black"), 
-        strip.background=element_rect(fill="white", colour="black"))
-ggsave("RFBO_population_projection_with_immigration.jpg", width=9, height=6)
-
-
-
-
-### save model workspace
-save.image("RFBO_popmod.RData")
-load("RFBO_popmod.RData")
 
 
 
