@@ -125,7 +125,7 @@ PVAdemo <- function(nreps,nyears){
     
     # set initial abundance
     PopArray2[1,rep] <- as.integer(rnorm(1,2277,50))      ### initial abundance of birds in year 1
-    K <- as.integer(runif(1,30000,40000))      ### carrying capacity
+    K <- as.integer(runif(1,30000,50000))      ### carrying capacity
     
     ### loop through years
     for(y in 2:(nyears)){
@@ -166,7 +166,7 @@ PVAdemo <- function(nreps,nyears){
 
       
       ### return list of population sizes
-      if(PopArray2[y-1,rep]>K/100){
+      if(PopArray2[y-1,rep]>K/2){
         PopArray2[y,rep] <- PopArray2[y-1,rep]*exp(log(projections$lambda)*(1-(PopArray2[y-1,rep]/K)))
         ### return list of population growth rates
         lambdas[rep] <- exp(log(projections$lambda)*(1-(PopArray2[y-1,rep]/K)))       # Growth rate given that pop is approaching carrying capacity
@@ -208,14 +208,16 @@ RFBOpop<-countdata %>%
   gather(key="simulation", value="N",-Year) %>%
   mutate(simulation=as.numeric(as.factor(simulation)))
 
-RFBOpopmean<-RFBOpop %>% group_by(Year) %>%
-  summarise(N=median(N))
+RFBOpopmean<-RFBOpop %>%
+  ungroup() %>%
+  group_by(Year) %>%
+  summarise(Nmed=median(N))
 
 ### CREATE PLOT FOR BASELINE TRAJECTORY
 
 ggplot()+
   geom_line(data=RFBOpop, aes(x=Year, y=N, group=simulation), linewidth=0.5, col="grey75")+
-  geom_line(data=RFBOpopmean,aes(x=Year, y=N), linewidth=1, col="firebrick")+
+  geom_line(data=RFBOpopmean,aes(x=Year, y=Nmed), linewidth=1, col="firebrick")+
   geom_point(data=countdata, aes(x=Year, y=RFBO), size=3, colour="firebrick")+
   
   ## format axis ticks
@@ -233,7 +235,7 @@ ggplot()+
         legend.key = element_rect(fill = NA),
         strip.text.x=element_text(size=18, color="black"), 
         strip.background=element_rect(fill="white", colour="black"))
-ggsave("RFBO_population_projection_with_immigration.jpg", width=9, height=6)
+ggsave("RFBO_population_projection_simulation.jpg", width=9, height=6)
 
 
 
