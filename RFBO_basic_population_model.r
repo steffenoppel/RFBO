@@ -11,9 +11,7 @@
 ## NEED TO DO: NARROW DOWN PRIORS FOR PRODUCTIVITY AND BREEDING PROPENSITY
 ## model struggles to converge because too many things can change at once
 ## reverted to version of 29 Oct that seemed to produce sensible output
-
 ## dreaded 'slicer stuck at value with infinite density' may occur because there is no variation: https://sourceforge.net/p/mcmc-jags/discussion/610037/thread/1b1ea77d/
-
 ### REVISED APPROACH 9 NOV 2023: FIXED SURVIVAL and prop.breeding to reduce ambiguity
 
 ### REVISION ON 26 October 2024: fully revised population model to remove Bayesian estimation
@@ -42,7 +40,8 @@ countdata$phase[countdata$Year>2000]<-2
 
 ## Breeding success (%) at five monitoring colonies in the 2022 NW season
 productivity<-c(55.3,61.8,43.6,34.3,47.6)
-
+prod.mean<-mean(productivity/100)
+prod.sd<-sd(productivity/100)
 
 
 #########################################################################
@@ -55,6 +54,7 @@ productivity<-c(55.3,61.8,43.6,34.3,47.6)
 #Adult survival: 	0.92+0.0028 	from Cubaynes et al. 2010
 #Age at maturity: 	3 	from	various web sources
 #breeding propensity: 0.56+0.0361 adapted from Cubaynes et al. 2010
+## this is very low, resighting prop in BFBO is migher, and MLC suggested >1 breeding per year, so increased uncertainty up to >1
 
 
 
@@ -67,24 +67,15 @@ seabird.matrix<-matrix(c(
 stable.stage(seabird.matrix)
 
 
-
-
-
-
-
-##########~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~######
-#################### SIMULATION OF POPULATION TRAJECTORY ACROSS RANGE OF PARAMETERS ########################################
-##########~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~######
-
 ### SPECIFY RANGE OF PARAMETERS FOR DEMOGRAPHIC MODEL ###
-
-pop.sizes<-seq(2200,3000,100)			### population size in FEMALE individuals
-Sa<-seq(0.90,0.92,0.05)				### survival of adult females
-Sj<-seq(0.85,0.87,0.05)				### survival of first year females
-F<-seq(0.5,0.6,0.2)			   ### fecundity = number of fledglings raised per FIRST brood
-bp<-0.9			   ### fecundity = number of fledglings raised per SECOND brood, should be slightly lower than first brood
-
-
+# 
+# pop.sizes<-seq(2200,3000,100)			### population size in FEMALE individuals
+# Sa<-seq(0.90,0.92,0.05)				### survival of adult females
+# Sj<-seq(0.85,0.87,0.05)				### survival of first year females
+# F<-seq(0.5,0.6,0.2)			   ### fecundity = number of fledglings raised per FIRST brood
+# bp<-0.9			   ### fecundity = number of fledglings raised per SECOND brood, should be slightly lower than first brood
+# 
+# 
 
 
 
@@ -99,12 +90,12 @@ bp<-0.9			   ### fecundity = number of fledglings raised per SECOND brood, shoul
 ## 56% of adult population is male
 
 bird.matrix<-matrix(c(
-  0,0,F*0.5*bp,
+  0,0,F*0.44*bp,
   Sj,0,0,
   0,Sa,Sa),ncol=3, byrow=T)
 stable.stage(bird.matrix)
 
-bird.vr<-list(F=0.56,bp=0.9,Sa=0.92, Sj=0.85)
+bird.vr<-list(F=prod.mean,bp=0.56,Sa=0.92, Sj=0.85)
 A<-matrix(sapply(bird.matrix, eval,bird.vr , NULL), nrow=sqrt(length(bird.matrix)), byrow=TRUE)
 projections<-pop.projection(A,n=c(50,100,500),iterations=50)
 projections$lambda
@@ -122,8 +113,6 @@ projections$lambda
 Ricker <- function(prev_abund,K,lambda){       # this is a function for computing next-year abundance -- includes env stochasticity
   prev_abund * exp(log(lambda))*(1-(prev_abund/K))
 }
-
-
 
 ####  Stochastic population viability analysis function
 PVAdemo <- function(nreps,nyears){
@@ -149,14 +138,14 @@ PVAdemo <- function(nreps,nyears){
       Sj<-rbeta(1,85,17)
       
       ## productivity
-      F<-runif(1,0.34,0.62) ## range of breeding success observed in different colonies in 2023
+      F<-rnorm(1,prod.mean,prod.sd) ## range of breeding success observed in different colonies in 2023
       
       ## breeding propensity
-      bp<-runif(1,0.5,0.9)
+      bp<-runif(1,0.56,1.09)
       
       ## compile pop matrix
       bird.matrix<-matrix(c(
-        0,0,F*0.5*bp,
+        0,0,F*0.44*bp,
         Sj,0,0,
         0,Sa,Sa),ncol=3, byrow=T)
       agedis<-stable.stage(bird.matrix)
@@ -177,7 +166,7 @@ PVAdemo <- function(nreps,nyears){
 
       
       ### return list of population sizes
-      if(PopArray2[y-1,rep]>K/2){
+      if(PopArray2[y-1,rep]>K/100){
         PopArray2[y,rep] <- PopArray2[y-1,rep]*exp(log(projections$lambda)*(1-(PopArray2[y-1,rep]/K)))
         ### return list of population growth rates
         lambdas[rep] <- exp(log(projections$lambda)*(1-(PopArray2[y-1,rep]/K)))       # Growth rate given that pop is approaching carrying capacity
@@ -195,7 +184,7 @@ PVAdemo <- function(nreps,nyears){
 }
 
 
-OUTPUT<-PVAdemo(nreps=100,nyears=length(countdata$Year))
+OUTPUT<-PVAdemo(nreps=1000,nyears=length(countdata$Year))
 
 
 #########################################################################
@@ -219,13 +208,15 @@ RFBOpop<-countdata %>%
   gather(key="simulation", value="N",-Year) %>%
   mutate(simulation=as.numeric(as.factor(simulation)))
 
+RFBOpopmean<-RFBOpop %>% group_by(Year) %>%
+  summarise(N=median(N))
 
 ### CREATE PLOT FOR BASELINE TRAJECTORY
 
 ggplot()+
-  geom_line(data=RFBOpop, aes(x=Year, y=N, group=simulation), linewidth=1)+
-  # geom_ribbon(data=RFBOpop,aes(x=Year, ymin=lcl,ymax=ucl),alpha=0.2)+
-  # geom_point(data=countdata, aes(x=Year, y=RFBO), size=3, colour="firebrick")+
+  geom_line(data=RFBOpop, aes(x=Year, y=N, group=simulation), linewidth=0.5, col="grey75")+
+  geom_line(data=RFBOpopmean,aes(x=Year, y=N), linewidth=1, col="firebrick")+
+  geom_point(data=countdata, aes(x=Year, y=RFBO), size=3, colour="firebrick")+
   
   ## format axis ticks
   scale_y_continuous(name="Red-footed Booby pairs", limits=c(0,25000),breaks=seq(0,25000,5000))+
