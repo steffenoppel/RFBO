@@ -45,29 +45,29 @@ prod.sd<-sd(productivity/100)
 
 
 #########################################################################
-# 2. Specify BASIC POPULATION MODEL WITH TWO SCENARIOS
+# 2. Specify BASIC POPULATION MODEL MATRIX
 #########################################################################
 
-### DEMOGRAPHIC PARAMETERS 
-
-#Juvenile survival: 	0.85+0.0527 	from Cubaynes et al. 2010
-#Adult survival: 	0.92+0.0028 	from Cubaynes et al. 2010
-#Age at maturity: 	3 	from	various web sources
-#breeding propensity: 0.56+0.0361 adapted from Cubaynes et al. 2010
-## this is very low, resighting prop in BFBO is migher, and MLC suggested >1 breeding per year, so increased uncertainty up to >1
-
-
-
-### Calculation of stable age distribution 
-### CREATING THE POPULATION MATRIX ###
-seabird.matrix<-matrix(c(
-  0,0,0.519*0.5*0.56,
-  0.85,0,0,
-  0,0.92,0.92),ncol=3, byrow=T)
-stable.stage(seabird.matrix)
-
-
-### SPECIFY RANGE OF PARAMETERS FOR DEMOGRAPHIC MODEL ###
+# ### DEMOGRAPHIC PARAMETERS 
+# 
+# #Juvenile survival: 	0.85+0.0527 	from Cubaynes et al. 2010
+# #Adult survival: 	0.92+0.0028 	from Cubaynes et al. 2010
+# #Age at maturity: 	3 	from	various web sources
+# #breeding propensity: 0.56+0.0361 adapted from Cubaynes et al. 2010
+# ## this is very low, resighting prop in BFBO is migher, and MLC suggested >1 breeding per year, so increased uncertainty up to >1
+# 
+# 
+# 
+# ### Calculation of stable age distribution 
+# ### CREATING THE POPULATION MATRIX ###
+# seabird.matrix<-matrix(c(
+#   0,0,0.519*0.5*0.56,
+#   0.85,0,0,
+#   0,0.92,0.92),ncol=3, byrow=T)
+# stable.stage(seabird.matrix)
+# 
+# 
+# ## SPECIFY RANGE OF PARAMETERS FOR DEMOGRAPHIC MODEL ###
 # 
 # pop.sizes<-seq(2200,3000,100)			### population size in FEMALE individuals
 # Sa<-seq(0.90,0.92,0.05)				### survival of adult females
@@ -76,35 +76,26 @@ stable.stage(seabird.matrix)
 # bp<-0.9			   ### fecundity = number of fledglings raised per SECOND brood, should be slightly lower than first brood
 # 
 # 
-
-
-
-
-
-
-##########~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~######
-#################### SETTING UP THE POPULATION MATRIX ########################################
-##########~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~######
-
-## SIMPLE RUN TO TEST FOR LATER INCORPORATION IN LOOP
-## 56% of adult population is male
-
-bird.matrix<-matrix(c(
-  0,0,F*0.44*bp,
-  Sj,0,0,
-  0,Sa,Sa),ncol=3, byrow=T)
-stable.stage(bird.matrix)
-
-bird.vr<-list(F=prod.mean,bp=0.56,Sa=0.92, Sj=0.85)
-A<-matrix(sapply(bird.matrix, eval,bird.vr , NULL), nrow=sqrt(length(bird.matrix)), byrow=TRUE)
-projections<-pop.projection(A,n=c(50,100,500),iterations=50)
-projections$lambda
+# 
+# ## SIMPLE RUN TO TEST FOR LATER INCORPORATION IN LOOP
+# ## 56% of adult population is male
+# 
+# bird.matrix<-matrix(c(
+#   0,0,F*0.44*bp,
+#   Sj,0,0,
+#   0,Sa,Sa),ncol=3, byrow=T)
+# stable.stage(bird.matrix)
+# 
+# bird.vr<-list(F=prod.mean,bp=0.56,Sa=0.92, Sj=0.85)
+# A<-matrix(sapply(bird.matrix, eval,bird.vr , NULL), nrow=sqrt(length(bird.matrix)), byrow=TRUE)
+# projections<-pop.projection(A,n=c(50,100,500),iterations=50)
+# projections$lambda
 
 
 
 
 ##########~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~######
-########## STOCHASTIC POPULATION MODEL TAKING UNCERTAINTY INTO ACCOUNT ########################################
+########## 3. STOCHASTIC POPULATION MODEL TAKING UNCERTAINTY INTO ACCOUNT ########################################
 ##########~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~######
 
 
@@ -156,15 +147,6 @@ PVAdemo <- function(nreps,nyears){
                   PopArray2[y-1,rep])  ## pop size based on stable age distribution
       projections<-pop.projection(A,n=pop.size,iterations=15)
       
-      # ### return list of population growth rates
-      # lambdas[rep] <- projections$lambda       # Maximum rate of growth (max lambda)
-      # 
-      # ### return list of population sizes
-      # if(max(projections$stage.vectors[3,])<K*2){
-      #   PopArray2[,rep] <- projections$stage.vectors[3,]
-      # }
-
-      
       ### return list of population sizes
       if(PopArray2[y-1,rep]>K/2){
         PopArray2[y,rep] <- PopArray2[y-1,rep]*exp(log(projections$lambda)*(1-(PopArray2[y-1,rep]/K)))
@@ -184,22 +166,15 @@ PVAdemo <- function(nreps,nyears){
 }
 
 
-OUTPUT<-PVAdemo(nreps=1000,nyears=length(countdata$Year))
+OUTPUT<-PVAdemo(nreps=250,nyears=length(countdata$Year))
 
 
 #########################################################################
-# 5. SUMMARISE OUTPUT AND PLOT POPULATION TRAJECTORY
+# 4. SUMMARISE OUTPUT AND PLOT POPULATION TRAJECTORY --------
 #########################################################################
 
 mean(OUTPUT$lam)
-
-apply(OUTPUT$pop,1,median)
-
-
-
-#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-# GRAPH 1: POPULATION TRAJECTORY UNDER BOTH SCENARIOS
-#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+apply(OUTPUT$pop,1,median)  ## median population sizes per year
 
 ## retrieve the past population estimates (2006-2019)
 RFBOpop<-countdata %>%
@@ -221,7 +196,7 @@ ggplot()+
   geom_point(data=countdata, aes(x=Year, y=RFBO), size=3, colour="firebrick")+
   
   ## format axis ticks
-  scale_y_continuous(name="Red-footed Booby pairs", limits=c(0,25000),breaks=seq(0,25000,5000))+
+  scale_y_continuous(name="Red-footed Booby pairs", limits=c(0,35000),breaks=seq(0,35000,5000))+
   scale_x_continuous(name="Year", limits=c(1969,2023), breaks=seq(1969,2023,5))+
   
   ## beautification of the axes
@@ -236,9 +211,6 @@ ggplot()+
         strip.text.x=element_text(size=18, color="black"), 
         strip.background=element_rect(fill="white", colour="black"))
 ggsave("RFBO_population_projection_simulation.jpg", width=9, height=6)
-
-
-
 
 
 
