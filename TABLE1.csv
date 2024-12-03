@@ -1,6 +1,6 @@
 Parameter,1969-2000,2000-2022
 annual adult survival probability,0.929 (0.908 - 0.949),0.931 (0.915 - 0.946)
 first year survival probability,0.836 (0.753 - 0.899),0.901 (0.836 - 0.949)
-immigrants,0 (0 - 0),54.041 (3.009 - 97.726)
+annual N of immigrants,not included,54 (3 - 97)
 productivity,0.32 (0.253 - 0.399),0.492 (0.452 - 0.533)
-proportion of breeders,0.904 (0.841 - 0.949),0.955 (0.91 - 0.984)
+breeding propensity,0.904 (0.841 - 0.949),0.955 (0.91 - 0.984)
