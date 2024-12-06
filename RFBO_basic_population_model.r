@@ -106,7 +106,7 @@ prod.sd<-sd(productivity/100)
 # }
 
 ####  Stochastic population viability analysis function
-PVAdemo <- function(nreps,nyears){
+PVAdemo <- function(nreps,nyears, N.init){
   PopArray2 <- array(0,dim=c((nyears),nreps))
   lambdas <- array(1,dim=c((nyears-1),nreps))
   
@@ -115,8 +115,8 @@ PVAdemo <- function(nreps,nyears){
   for(rep in 1:nreps){
     
     # set initial abundance
-    PopArray2[1,rep] <- as.integer(rnorm(1,2277,50))      ### initial abundance of birds in year 1
-    K <- as.integer(runif(1,30000,50000))      ### carrying capacity
+    PopArray2[1,rep] <- as.integer(rnorm(1,N.init,50))      ### initial abundance of birds in year 1
+    K <- as.integer(runif(1,20000,40000))      ### carrying capacity
     
     ### loop through years
     for(y in 2:(nyears)){
@@ -136,7 +136,7 @@ PVAdemo <- function(nreps,nyears){
       
       ## compile pop matrix
       bird.matrix<-matrix(c(
-        0,0,F*0.44*bp,
+        0,0,F*0.5*bp,
         Sj,0,0,
         0,Sa,Sa),ncol=3, byrow=T)
       agedis<-stable.stage(bird.matrix)
@@ -155,7 +155,7 @@ PVAdemo <- function(nreps,nyears){
       }else{
         PopArray2[y,rep] <- PopArray2[y-1,rep]*projections$lambda
         ### return list of population growth rates
-        lambdas[rep] <- projections$lambda       # Maximum rate of growth (max lambda)
+        lambdas[y-1,rep] <- projections$lambda       # Maximum rate of growth (max lambda)
       }
       
 
@@ -166,7 +166,7 @@ PVAdemo <- function(nreps,nyears){
 }
 
 
-OUTPUT<-PVAdemo(nreps=250,nyears=length(countdata$Year))
+OUTPUT<-PVAdemo(nreps=1000,nyears=length(countdata$Year),N.init=2277)
 
 
 #########################################################################
@@ -174,6 +174,12 @@ OUTPUT<-PVAdemo(nreps=250,nyears=length(countdata$Year))
 #########################################################################
 
 mean(OUTPUT$lam)
+summary(OUTPUT$lam)
+summary(apply(OUTPUT$lam,1,mean)) ## range of population growth rates across all years
+summary(apply(OUTPUT$lam[1:30,],1,mean)) ## range of population growth rates across 1969-2000
+summary(apply(OUTPUT$lam[31:54,],1,mean)) ## range of population growth rates across 2000-2023
+
+
 apply(OUTPUT$pop,1,median)  ## median population sizes per year
 
 ## retrieve the past population estimates (2006-2019)
@@ -210,6 +216,65 @@ ggplot()+
 
 ### save output https://www.oryxthejournal.org/authors/guidelines-for-authors/
 ggsave("Fig3_RFBO_population_projection_simulation.jpg", width=4000, height=2800, dpi=400, units="px")
+
+
+
+
+
+
+#########################################################################
+# 5. TEST WHETHER GROWTH FROM 2000 onwards is possible --------
+#########################################################################
+
+OUTPUT2<-PVAdemo(nreps=1000,nyears=length(countdata$Year[countdata$Year>1999]),N.init=4095)
+
+## retrieve the past population estimates (2000-2023)
+RFBOpop2<-countdata %>%
+  filter(Year>1999) %>%
+  select(Year) %>%
+  bind_cols(OUTPUT2$pop) %>%
+  gather(key="simulation", value="N",-Year) %>%
+  mutate(simulation=as.numeric(as.factor(simulation)))
+
+RFBOpopmean2<-RFBOpop2 %>%
+  ungroup() %>%
+  group_by(Year) %>%
+  summarise(Nmed=median(N))
+
+### CREATE PLOT FOR BASELINE TRAJECTORY
+
+ggplot()+
+  geom_line(data=RFBOpop2, aes(x=Year, y=N, group=simulation), linewidth=0.5, col="skyblue")+
+  geom_line(data=RFBOpopmean2,aes(x=Year, y=Nmed), linewidth=1, col="darkblue")+
+  geom_point(data=countdata, aes(x=Year, y=RFBO), size=3, colour="firebrick")+
+  
+  ## format axis ticks
+  scale_y_continuous(name="Red-footed Booby pairs", limits=c(0,35000),breaks=seq(0,35000,5000))+
+  scale_x_continuous(name="Year", limits=c(1969,2024), breaks=seq(1969,2024,5))+
+  
+  ## beautification of the axes
+  theme(panel.background=element_rect(fill="white", colour="black"), panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
+        axis.text.y=element_text(size=18, color="black"),
+        axis.text.x=element_text(size=14, color="black"), 
+        axis.title=element_text(size=18),
+        strip.text.x=element_text(size=18, color="black"), 
+        strip.background=element_rect(fill="white", colour="black"))
+
+
+### save output https://www.oryxthejournal.org/authors/guidelines-for-authors/
+ggsave("FigS1_RFBO_population_projection_simulation.jpg", width=4000, height=2800, dpi=400, units="px")
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
