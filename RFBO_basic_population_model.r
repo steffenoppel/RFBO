@@ -202,13 +202,13 @@ ggplot()+
   geom_point(data=countdata, aes(x=Year, y=RFBO), size=3, colour="firebrick")+
   
   ## format axis ticks
-  scale_y_continuous(name="Red-footed Booby pairs", limits=c(0,35000),breaks=seq(0,35000,5000))+
+  scale_y_continuous(name="Red-footed booby pairs", limits=c(0,35000),breaks=seq(0,35000,5000), labels = scales::comma)+
   scale_x_continuous(name="Year", limits=c(1969,2024), breaks=seq(1969,2024,5))+
   
   ## beautification of the axes
   theme(panel.background=element_rect(fill="white", colour="black"), panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
         axis.text.y=element_text(size=18, color="black"),
-        axis.text.x=element_text(size=14, color="black"), 
+        axis.text.x=element_text(size=18, color="black", angle=45, hjust=1), 
         axis.title=element_text(size=18),
         strip.text.x=element_text(size=18, color="black"), 
         strip.background=element_rect(fill="white", colour="black"))
@@ -249,13 +249,13 @@ ggplot()+
   geom_point(data=countdata, aes(x=Year, y=RFBO), size=3, colour="firebrick")+
   
   ## format axis ticks
-  scale_y_continuous(name="Red-footed Booby pairs", limits=c(0,35000),breaks=seq(0,35000,5000))+
+  scale_y_continuous(name="Red-footed booby pairs", limits=c(0,35000),breaks=seq(0,35000,5000), labels = scales::comma)+
   scale_x_continuous(name="Year", limits=c(1969,2024), breaks=seq(1969,2024,5))+
   
   ## beautification of the axes
   theme(panel.background=element_rect(fill="white", colour="black"), panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
         axis.text.y=element_text(size=18, color="black"),
-        axis.text.x=element_text(size=14, color="black"), 
+        axis.text.x=element_text(size=18, color="black", angle=45, hjust=1),  
         axis.title=element_text(size=18),
         strip.text.x=element_text(size=18, color="black"), 
         strip.background=element_rect(fill="white", colour="black"))
